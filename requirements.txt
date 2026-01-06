@@ -1,0 +1,18 @@
+# Core dependencies
+flask>=2.3.0
+flask-cors>=4.0.0
+flask-limiter>=3.5.0
+numpy>=1.24.0
+Pillow>=10.0.0
+
+# Production server (recommended for deployment)
+gunicorn>=21.0.0
+
+# GPU acceleration (optional - install the version matching your CUDA)
+# Check CUDA version with: nvidia-smi
+# cupy-cuda11x  # For CUDA 11.x
+# cupy-cuda12x  # For CUDA 12.x
+
+# Development/Testing dependencies
+pytest>=7.4.0
+pytest-cov>=4.1.0

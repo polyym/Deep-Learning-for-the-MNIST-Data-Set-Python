@@ -1,0 +1,1693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deep Learning for the MNIST Data Set</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+          --paper-bg: #fefdfb;
+          --paper-text: #1a1a1a;
+          --paper-muted: #5a5a5a;
+          --paper-light: #8a8a8a;
+          --paper-border: #d4d0c8;
+          --paper-accent: #8b2323;
+          --paper-accent-light: #a85454;
+          --paper-highlight: #f5f3ef;
+          --serif: 'Crimson Pro', 'Times New Roman', Georgia, serif;
+          --mono: 'JetBrains Mono', 'Courier New', monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        .paper-container {
+          min-height: 100vh;
+          background: linear-gradient(180deg, #f0ebe3 0%, #e8e3db 100%);
+          font-family: var(--serif);
+          font-size: 17px;
+          line-height: 1.7;
+          color: var(--paper-text);
+          padding: 40px 20px;
+        }
+
+        .paper {
+          max-width: 900px;
+          margin: 0 auto;
+          background: var(--paper-bg);
+          box-shadow:
+            0 1px 3px rgba(0,0,0,0.05),
+            0 4px 12px rgba(0,0,0,0.08),
+            0 -1px 0 #fff inset;
+          border: 1px solid var(--paper-border);
+          position: relative;
+        }
+
+        .paper::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 60px;
+          bottom: 0;
+          width: 1px;
+          background: #e8c8c8;
+          opacity: 0.5;
+        }
+
+        .paper-header {
+          padding: 60px 80px 40px;
+          border-bottom: 1px solid var(--paper-border);
+          text-align: center;
+        }
+
+        .paper-meta {
+          font-family: var(--mono);
+          font-size: 11px;
+          letter-spacing: 2px;
+          text-transform: uppercase;
+          color: var(--paper-light);
+          margin-bottom: 24px;
+        }
+
+        .paper-title {
+          font-size: 32px;
+          font-weight: 600;
+          letter-spacing: -0.5px;
+          margin-bottom: 20px;
+          line-height: 1.2;
+        }
+
+        .paper-authors {
+          font-size: 18px;
+          font-style: italic;
+          color: var(--paper-muted);
+          margin-bottom: 8px;
+        }
+
+        .paper-affiliation {
+          font-size: 14px;
+          color: var(--paper-light);
+        }
+
+        .paper-abstract {
+          padding: 40px 80px;
+          background: var(--paper-highlight);
+          border-bottom: 1px solid var(--paper-border);
+        }
+
+        .abstract-title {
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+          margin-bottom: 12px;
+          color: var(--paper-accent);
+        }
+
+        .abstract-text {
+          font-size: 15px;
+          color: var(--paper-muted);
+          text-align: justify;
+        }
+
+        .paper-nav {
+          display: flex;
+          justify-content: center;
+          gap: 8px;
+          padding: 20px;
+          border-bottom: 1px solid var(--paper-border);
+          background: var(--paper-bg);
+          position: sticky;
+          top: 0;
+          z-index: 100;
+        }
+
+        .nav-btn {
+          font-family: var(--serif);
+          font-size: 14px;
+          padding: 8px 20px;
+          background: none;
+          border: 1px solid transparent;
+          color: var(--paper-muted);
+          cursor: pointer;
+          transition: all 0.2s;
+          border-radius: 2px;
+        }
+
+        .nav-btn:hover {
+          color: var(--paper-text);
+        }
+
+        .nav-btn.active {
+          color: var(--paper-accent);
+          border-color: var(--paper-border);
+          background: var(--paper-highlight);
+        }
+
+        .paper-content {
+          padding: 50px 80px;
+        }
+
+        .section {
+          margin-bottom: 50px;
+        }
+
+        .section-number {
+          font-family: var(--mono);
+          font-size: 13px;
+          color: var(--paper-accent);
+          margin-right: 8px;
+        }
+
+        .section-title {
+          font-size: 22px;
+          font-weight: 600;
+          margin-bottom: 20px;
+          padding-bottom: 10px;
+          border-bottom: 2px solid var(--paper-accent);
+          display: inline-block;
+        }
+
+        .subsection-title {
+          font-size: 18px;
+          font-weight: 600;
+          margin: 30px 0 15px;
+          color: var(--paper-text);
+        }
+
+        p {
+          margin-bottom: 16px;
+          text-align: justify;
+          hyphens: auto;
+        }
+
+        .equation-block {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 28px 0;
+          padding: 20px;
+          background: var(--paper-highlight);
+          border-left: 3px solid var(--paper-accent);
+          position: relative;
+        }
+
+        .equation-content {
+          font-family: var(--mono);
+          font-size: 15px;
+          letter-spacing: 0.5px;
+        }
+
+        .equation-number {
+          position: absolute;
+          right: 20px;
+          font-family: var(--serif);
+          font-size: 14px;
+          color: var(--paper-muted);
+        }
+
+        .definition-box {
+          margin: 24px 0;
+          padding: 20px 24px;
+          background: var(--paper-highlight);
+          border: 1px solid var(--paper-border);
+          font-size: 15px;
+        }
+
+        .definition-term {
+          font-weight: 600;
+          font-style: italic;
+          color: var(--paper-accent);
+        }
+
+        .paper-figure {
+          margin: 32px 0;
+          text-align: center;
+        }
+
+        .figure-content {
+          padding: 24px;
+          background: #fafafa;
+          border: 1px solid var(--paper-border);
+          margin-bottom: 12px;
+        }
+
+        figcaption {
+          font-size: 14px;
+          color: var(--paper-muted);
+          max-width: 80%;
+          margin: 0 auto;
+        }
+
+        figcaption strong {
+          color: var(--paper-text);
+        }
+
+        /* Interactive Configuration Panel */
+        .config-panel {
+          background: var(--paper-highlight);
+          border: 1px solid var(--paper-border);
+          padding: 24px;
+          margin: 24px 0;
+        }
+
+        .config-title {
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+          margin-bottom: 20px;
+          color: var(--paper-accent);
+          padding-bottom: 10px;
+          border-bottom: 1px solid var(--paper-border);
+        }
+
+        .config-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 20px;
+        }
+
+        .config-field label {
+          display: block;
+          font-size: 13px;
+          font-weight: 500;
+          margin-bottom: 6px;
+          color: var(--paper-muted);
+        }
+
+        .config-field input, .config-field select {
+          width: 100%;
+          padding: 10px 12px;
+          font-family: var(--mono);
+          font-size: 14px;
+          border: 1px solid var(--paper-border);
+          background: var(--paper-bg);
+          color: var(--paper-text);
+        }
+
+        .config-field input:focus, .config-field select:focus {
+          outline: none;
+          border-color: var(--paper-accent);
+        }
+
+        .method-toggle {
+          display: flex;
+          border: 1px solid var(--paper-border);
+          background: var(--paper-bg);
+        }
+
+        .method-btn {
+          flex: 1;
+          padding: 10px 16px;
+          font-family: var(--serif);
+          font-size: 14px;
+          border: none;
+          background: none;
+          cursor: pointer;
+          color: var(--paper-muted);
+          transition: all 0.2s;
+        }
+
+        .method-btn.active {
+          background: var(--paper-accent);
+          color: white;
+        }
+
+        .hidden-config {
+          grid-column: span 2;
+        }
+
+        .hidden-inputs {
+          display: flex;
+          gap: 12px;
+        }
+
+        .hidden-inputs input {
+          flex: 1;
+        }
+
+        .digits-inputs {
+          display: flex;
+          gap: 12px;
+        }
+
+        .digits-inputs select {
+          flex: 1;
+        }
+
+        .train-btn {
+          grid-column: span 2;
+          padding: 14px 28px;
+          font-family: var(--serif);
+          font-size: 16px;
+          font-weight: 500;
+          background: var(--paper-accent);
+          color: white;
+          border: none;
+          cursor: pointer;
+          transition: all 0.2s;
+          margin-top: 8px;
+        }
+
+        .train-btn:hover:not(:disabled) {
+          background: var(--paper-accent-light);
+        }
+
+        .train-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        /* Network Architecture Diagram */
+        .network-diagram {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 30px 20px;
+          background: var(--paper-bg);
+          border: 1px solid var(--paper-border);
+        }
+
+        .layer {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .layer-label {
+          font-family: var(--mono);
+          font-size: 10px;
+          color: var(--paper-light);
+          margin-bottom: 8px;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+        }
+
+        .neuron {
+          width: 10px;
+          height: 10px;
+          background: var(--paper-accent);
+          border-radius: 50%;
+          opacity: 0.7;
+        }
+
+        .layer-count {
+          font-family: var(--mono);
+          font-size: 12px;
+          color: var(--paper-muted);
+          margin-top: 8px;
+        }
+
+        .connection {
+          flex: 1;
+          height: 1px;
+          background: linear-gradient(90deg, var(--paper-border), var(--paper-light), var(--paper-border));
+          margin: 0 12px;
+        }
+
+        /* Training Progress */
+        .training-status {
+          padding: 24px;
+          background: var(--paper-highlight);
+          border: 1px solid var(--paper-border);
+          margin: 24px 0;
+          text-align: center;
+        }
+
+        .training-spinner {
+          width: 32px;
+          height: 32px;
+          border: 2px solid var(--paper-border);
+          border-top-color: var(--paper-accent);
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+          margin: 0 auto 16px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .progress-bar {
+          height: 6px;
+          background: var(--paper-border);
+          margin: 16px 0;
+          overflow: hidden;
+        }
+
+        .progress-fill {
+          height: 100%;
+          background: var(--paper-accent);
+          transition: width 0.3s;
+        }
+
+        .progress-stats {
+          display: flex;
+          justify-content: space-between;
+          font-family: var(--mono);
+          font-size: 13px;
+          color: var(--paper-muted);
+        }
+
+        /* Results */
+        .results-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 16px;
+          margin: 24px 0;
+        }
+
+        .result-card {
+          padding: 20px;
+          background: var(--paper-highlight);
+          border: 1px solid var(--paper-border);
+          text-align: center;
+        }
+
+        .result-value {
+          font-family: var(--mono);
+          font-size: 28px;
+          font-weight: 600;
+          color: var(--paper-accent);
+        }
+
+        .result-label {
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          color: var(--paper-light);
+          margin-top: 4px;
+        }
+
+        /* Loss Chart */
+        .loss-chart {
+          height: 180px;
+          display: flex;
+          align-items: flex-end;
+          gap: 2px;
+          padding: 16px 0;
+          border-bottom: 1px solid var(--paper-border);
+        }
+
+        .loss-bar {
+          flex: 1;
+          background: var(--paper-accent);
+          opacity: 0.7;
+          min-height: 2px;
+          transition: height 0.3s;
+        }
+
+        .chart-labels {
+          display: flex;
+          justify-content: space-between;
+          font-family: var(--mono);
+          font-size: 11px;
+          color: var(--paper-light);
+          margin-top: 8px;
+        }
+
+        /* Sample Predictions */
+        .samples-grid {
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
+          gap: 12px;
+        }
+
+        .sample-card {
+          padding: 16px;
+          background: var(--paper-bg);
+          border: 2px solid var(--paper-border);
+          text-align: center;
+        }
+
+        .sample-card.correct {
+          border-color: #2d5a2d;
+          background: rgba(45, 90, 45, 0.05);
+        }
+
+        .sample-card.incorrect {
+          border-color: var(--paper-accent);
+          background: rgba(139, 35, 35, 0.05);
+        }
+
+        .sample-img {
+          width: 48px;
+          height: 48px;
+          margin: 0 auto 10px;
+          image-rendering: pixelated;
+        }
+
+        .sample-labels {
+          font-family: var(--mono);
+          font-size: 11px;
+          color: var(--paper-muted);
+        }
+
+        /* Drawing Canvas */
+        .draw-section {
+          display: grid;
+          grid-template-columns: auto 1fr;
+          gap: 32px;
+          align-items: start;
+        }
+
+        .canvas-wrapper {
+          text-align: center;
+        }
+
+        .draw-canvas {
+          border: 2px solid var(--paper-border);
+          cursor: crosshair;
+          display: block;
+          background: #1a1a1a;
+        }
+
+        .canvas-controls {
+          display: flex;
+          gap: 8px;
+          margin-top: 12px;
+        }
+
+        .canvas-btn {
+          flex: 1;
+          padding: 10px 16px;
+          font-family: var(--serif);
+          font-size: 14px;
+          border: 1px solid var(--paper-border);
+          background: var(--paper-bg);
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .canvas-btn:hover {
+          background: var(--paper-highlight);
+        }
+
+        .canvas-btn.primary {
+          background: var(--paper-accent);
+          color: white;
+          border-color: var(--paper-accent);
+        }
+
+        .prediction-result {
+          padding: 24px;
+          background: var(--paper-highlight);
+          border: 1px solid var(--paper-border);
+        }
+
+        .predicted-digit {
+          font-family: var(--mono);
+          font-size: 64px;
+          font-weight: 600;
+          color: var(--paper-accent);
+          margin-bottom: 20px;
+          text-align: center;
+        }
+
+        .prob-row {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-bottom: 10px;
+        }
+
+        .prob-label {
+          width: 50px;
+          font-family: var(--mono);
+          font-size: 13px;
+          color: var(--paper-muted);
+        }
+
+        .prob-track {
+          flex: 1;
+          height: 8px;
+          background: var(--paper-border);
+        }
+
+        .prob-fill {
+          height: 100%;
+          background: var(--paper-accent);
+        }
+
+        .prob-value {
+          width: 60px;
+          font-family: var(--mono);
+          font-size: 13px;
+          color: var(--paper-muted);
+          text-align: right;
+        }
+
+        /* Confusion Matrix */
+        .matrix-container {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 24px;
+          margin: 24px 0;
+        }
+
+        .matrix-box h4 {
+          font-size: 14px;
+          font-weight: 600;
+          margin-bottom: 12px;
+          color: var(--paper-text);
+        }
+
+        .matrix-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-family: var(--mono);
+          font-size: 12px;
+        }
+
+        .matrix-table th, .matrix-table td {
+          padding: 10px;
+          text-align: center;
+          border: 1px solid var(--paper-border);
+        }
+
+        .matrix-table th {
+          background: var(--paper-highlight);
+          font-weight: 500;
+          color: var(--paper-muted);
+        }
+
+        /* Table */
+        .data-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 20px 0;
+          font-size: 14px;
+        }
+
+        .data-table th,
+        .data-table td {
+          padding: 12px 16px;
+          text-align: left;
+          border: 1px solid var(--paper-border);
+        }
+
+        .data-table th {
+          background: var(--paper-highlight);
+          font-weight: 600;
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .data-table td {
+          font-family: var(--mono);
+        }
+
+        /* Footer */
+        .paper-footer {
+          padding: 30px 80px;
+          border-top: 1px solid var(--paper-border);
+          background: var(--paper-highlight);
+        }
+
+        .references-title {
+          font-size: 18px;
+          font-weight: 600;
+          margin-bottom: 16px;
+        }
+
+        .reference {
+          font-size: 14px;
+          color: var(--paper-muted);
+          margin-bottom: 8px;
+          padding-left: 24px;
+          text-indent: -24px;
+        }
+
+        .reference a {
+          color: var(--paper-accent);
+          text-decoration: none;
+        }
+
+        .reference a:hover {
+          text-decoration: underline;
+        }
+
+        .empty-state {
+          text-align: center;
+          padding: 60px 40px;
+          color: var(--paper-muted);
+        }
+
+        .empty-icon {
+          font-size: 48px;
+          opacity: 0.3;
+          margin-bottom: 16px;
+        }
+
+        sup, sub {
+          font-size: 0.75em;
+        }
+
+        .italic { font-style: italic; }
+        .mono { font-family: var(--mono); }
+
+        .gpu-badge {
+          display: inline-block;
+          font-family: var(--mono);
+          font-size: 10px;
+          padding: 4px 8px;
+          background: #2d5a2d;
+          color: white;
+          border-radius: 3px;
+          margin-left: 8px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .gpu-badge.unavailable {
+          background: var(--paper-light);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // API functions
+        const api = {
+            health: async () => (await fetch('/api/health')).json(),
+            train: async (c) => (await fetch('/api/train', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(c) })).json(),
+            status: async () => (await fetch('/api/status')).json(),
+            results: async () => (await fetch('/api/results')).json(),
+            predict: async (img) => (await fetch('/api/predict', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: img }) })).json(),
+            samples: async () => (await fetch('/api/sample_images')).json()
+        };
+
+        // Equation component
+        const Equation = ({ children, number }) => (
+            <div className="equation-block">
+                <div className="equation-content">{children}</div>
+                {number && <span className="equation-number">({number})</span>}
+            </div>
+        );
+
+        // Definition box component
+        const Definition = ({ term, children }) => (
+            <div className="definition-box">
+                <span className="definition-term">Definition ({term}).</span> {children}
+            </div>
+        );
+
+        // Figure component with caption
+        const Figure = ({ number, caption, children }) => (
+            <figure className="paper-figure">
+                <div className="figure-content">{children}</div>
+                <figcaption>
+                    <strong>Figure {number}.</strong> {caption}
+                </figcaption>
+            </figure>
+        );
+
+        // Video walkthrough component for the original MATLAB implementation
+        const VideoWalkthrough = () => (
+            <div style={{ margin: '32px 0', padding: '24px', background: 'var(--paper-highlight)', border: '1px solid var(--paper-border)' }}>
+                <div style={{ fontSize: '12px', fontWeight: '700', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '16px', color: 'var(--paper-accent)', textAlign: 'center' }}>
+                    Video Walkthrough (Original MATLAB Implementation)
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <iframe
+                        width="560"
+                        height="315"
+                        src="https://www.youtube.com/embed/AcSmXXuit6k"
+                        title="Going through the handwritten digit recognition ANN I made in under 5 minutes (speed-run)"
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                        style={{ border: '1px solid var(--paper-border)', maxWidth: '100%' }}
+                    />
+                </div>
+                <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--paper-muted)', marginTop: '12px', fontStyle: 'italic' }}>
+                    Going through the handwritten digit recognition ANN I made in under 5 minutes (speed-run)
+                </p>
+            </div>
+        );
+
+        // Confusion Matrix component
+        const ConfusionMatrix = ({ matrix, labels, title }) => {
+            if (!matrix) return null;
+            const max = Math.max(...matrix.flat());
+            return (
+                <div className="matrix-box">
+                    <h4>{title}</h4>
+                    <table className="matrix-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                {labels.map(l => <th key={l}>{l}</th>)}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {matrix.map((row, i) => (
+                                <tr key={i}>
+                                    <th>{labels[i]}</th>
+                                    {row.map((v, j) => (
+                                        <td key={j} style={{
+                                            background: `rgba(139, 35, 35, ${max > 0 ? v/max*0.4 : 0})`,
+                                            color: v/max > 0.5 ? '#fafafa' : 'inherit'
+                                        }}>{v}</td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            );
+        };
+
+        // Render MNIST image
+        const renderImg = (data) => {
+            const c = document.createElement('canvas');
+            c.width = 28; c.height = 28;
+            const ctx = c.getContext('2d');
+            const id = ctx.createImageData(28, 28);
+            for (let i = 0; i < 784; i++) {
+                const val = typeof data[i] === 'number' ? data[i] : 0;
+                id.data[i*4] = val;
+                id.data[i*4+1] = val;
+                id.data[i*4+2] = val;
+                id.data[i*4+3] = 255;
+            }
+            ctx.putImageData(id, 0, 0);
+            return c.toDataURL();
+        };
+
+        function App() {
+            const [cfg, setCfg] = useState({
+                epochs: 50,
+                learningRate: 0.01,
+                useSmallData: true,
+                useGpu: false,
+                backpropMethod: 'cb',
+                hiddenU: 64,
+                hiddenV: 32,
+                hiddenW: 16,
+                digitA: 0,
+                digitB: 1,
+                digitC: 2,
+                digitD: 3
+            });
+            const [training, setTraining] = useState(false);
+            const [progress, setProgress] = useState({ epoch: 0, totalEpochs: 0, loss: 0, accuracy: 0 });
+            const [lossHistory, setLossHistory] = useState([]);
+            const [results, setResults] = useState(null);
+            const [samples, setSamples] = useState([]);
+            const [activeSection, setActiveSection] = useState('intro');
+            const [gpuAvailable, setGpuAvailable] = useState(false);
+            const [drawPred, setDrawPred] = useState(null);
+            const canvasRef = useRef(null);
+
+            // Check GPU availability on mount
+            useEffect(() => {
+                api.health().then(h => setGpuAvailable(h.gpu_available)).catch(() => {});
+            }, []);
+
+            // Poll for training status
+            useEffect(() => {
+                if (!training) return;
+                const iv = setInterval(async () => {
+                    try {
+                        const s = await api.status();
+                        if (s.progress && s.progress.length > 0) {
+                            const last = s.progress[s.progress.length - 1];
+                            setProgress(last);
+                            setLossHistory(s.progress.map(p => p.loss));
+                        }
+                        if (!s.is_training) {
+                            setTraining(false);
+                            if (s.has_results) {
+                                const r = await api.results();
+                                setResults(r);
+                                setLossHistory(r.history?.loss_history || []);
+                                try {
+                                    const samp = await api.samples();
+                                    setSamples(samp.samples || []);
+                                } catch (e) {}
+                                setActiveSection('results');
+                            }
+                        }
+                    } catch (e) {}
+                }, 500);
+                return () => clearInterval(iv);
+            }, [training]);
+
+            const train = async () => {
+                setTraining(true);
+                setLossHistory([]);
+                setResults(null);
+                setSamples([]);
+                setProgress({ epoch: 0, totalEpochs: cfg.epochs, loss: 0, accuracy: 0 });
+                await api.train(cfg);
+            };
+
+            const clearCanvas = () => {
+                const ctx = canvasRef.current?.getContext('2d');
+                if (ctx) {
+                    ctx.fillStyle = '#1a1a1a';
+                    ctx.fillRect(0, 0, 224, 224);
+                }
+                setDrawPred(null);
+            };
+
+            useEffect(() => { clearCanvas(); }, []);
+
+            // Drawing state - use refs to avoid re-renders during drawing
+            const isDrawingRef = useRef(false);
+            const lastPosRef = useRef({ x: 0, y: 0 });
+
+            const getCanvasPos = (e, canvas) => {
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+
+                // Handle both mouse and touch events
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+                return {
+                    x: (clientX - rect.left) * scaleX,
+                    y: (clientY - rect.top) * scaleY
+                };
+            };
+
+            const startDrawing = (e) => {
+                e.preventDefault();
+                isDrawingRef.current = true;
+                const pos = getCanvasPos(e, canvasRef.current);
+                lastPosRef.current = pos;
+
+                // Draw initial dot
+                const ctx = canvasRef.current.getContext('2d');
+                ctx.fillStyle = '#e8e8e8';
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, 8, 0, Math.PI * 2);
+                ctx.fill();
+            };
+
+            const stopDrawing = () => {
+                isDrawingRef.current = false;
+            };
+
+            const handleDraw = (e) => {
+                if (!isDrawingRef.current) return;
+                e.preventDefault();
+
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                const pos = getCanvasPos(e, canvas);
+
+                // Draw a line from last position to current position
+                ctx.strokeStyle = '#e8e8e8';
+                ctx.lineWidth = 16;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                ctx.beginPath();
+                ctx.moveTo(lastPosRef.current.x, lastPosRef.current.y);
+                ctx.lineTo(pos.x, pos.y);
+                ctx.stroke();
+
+                lastPosRef.current = pos;
+            };
+
+            const predictDrawing = async () => {
+                if (!results) return;
+                try {
+                    const imageData = canvasRef.current.toDataURL('image/png');
+                    const pred = await api.predict(imageData);
+                    setDrawPred(pred);
+                } catch (e) {
+                    console.error('Prediction failed:', e);
+                }
+            };
+
+            const maxLoss = lossHistory.length > 0 ? Math.max(...lossHistory) : 1;
+            const digits = [cfg.digitA, cfg.digitB, cfg.digitC, cfg.digitD];
+            const labels = digits.map(String).concat(['None']);
+
+            return (
+                <div className="paper-container">
+                    <article className="paper">
+                        {/* Header */}
+                        <header className="paper-header">
+                            <div className="paper-meta">MA2647 · Deep Learning · Technical Report</div>
+                            <h1 className="paper-title">Deep Learning for the MNIST Data Set</h1>
+                            <div className="paper-authors">Hadi K</div>
+                        </header>
+
+                        {/* Abstract */}
+                        <section className="paper-abstract">
+                            <div className="abstract-title">Abstract</div>
+                            <p className="abstract-text">
+                                This work presents an interactive implementation of a feedforward artificial neural network
+                                for handwritten digit recognition using the MNIST dataset. The network architecture consists
+                                of 784 input neurons, three configurable hidden layers with sigmoid activation, and a 5-neuron
+                                output layer using softmax classification. Two distinct backpropagation methods are compared:
+                                Calculus-based Backpropagation (CB) and Unscaled Heuristic Backpropagation (UHB). Experimental
+                                results demonstrate test accuracies of 98.11% and 97.96% for CB and UHB respectively, validating
+                                the efficacy of both approaches for digit classification tasks.
+                            </p>
+                        </section>
+
+                        {/* Navigation */}
+                        <nav className="paper-nav">
+                            {[
+                                ['intro', '1. Introduction'],
+                                ['method', '2. Methodology'],
+                                ['experiment', '3. Experiment'],
+                                ['results', '4. Results'],
+                                ['interactive', '5. Interactive Demo']
+                            ].map(([key, label]) => (
+                                <button
+                                    key={key}
+                                    className={`nav-btn ${activeSection === key ? 'active' : ''}`}
+                                    onClick={() => setActiveSection(key)}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </nav>
+
+                        {/* Content */}
+                        <div className="paper-content">
+                            {activeSection === 'intro' && (
+                                <section className="section">
+                                    <h2 className="section-title"><span className="section-number">1</span> Introduction</h2>
+
+                                    <p>
+                                        Artificial neural networks (ANNs) are computational modeling techniques that extract complex
+                                        representative information from data by establishing empirical relationships between dependent
+                                        and independent variables. As a supervised learning scheme, an ANN consists of three fundamental
+                                        layers: input, hidden, and output layers.
+                                    </p>
+
+                                    <Definition term="Artificial Neuron">
+                                        The core computational unit of an ANN. Each neuron receives inputs, applies a weighted sum
+                                        with bias, and passes the result through an activation function to produce an output.
+                                    </Definition>
+
+                                    <p>
+                                        In the proposed network, the input layer is composed of 784 (28×28) neurons corresponding to
+                                        the pixel values of MNIST images. This is followed by 3 hidden layers with user-configurable
+                                        node counts, and an output layer with 5 neurons representing 4 desired digit classes plus a
+                                        "None" class for all other digits.
+                                    </p>
+
+                                    <h3 className="subsection-title">1.1 Weight Initialization</h3>
+
+                                    <p>
+                                        Weights and biases are the two learnable parameters optimized during training. Initial weights
+                                        are assigned random values in the range [-0.5, 0.5], while biases are initialized to zero:
+                                    </p>
+
+                                    <Equation number="1">
+                                        W<sub>n</sub> = 0.5 − rand(nodes<sub>in</sub>, nodes<sub>out</sub>)
+                                    </Equation>
+
+                                    <Equation number="2">
+                                        b<sub>n</sub> = zeros(nodes<sub>in</sub>, nodes<sub>out</sub>)
+                                    </Equation>
+
+                                    <p>
+                                        This initialization strategy ensures weights remain within the sensitive region of the sigmoid
+                                        activation function, preventing saturation during early training epochs.
+                                    </p>
+
+                                    <VideoWalkthrough />
+                                </section>
+                            )}
+
+                            {activeSection === 'method' && (
+                                <section className="section">
+                                    <h2 className="section-title"><span className="section-number">2</span> Methodology</h2>
+
+                                    <h3 className="subsection-title">2.1 Forward Propagation</h3>
+
+                                    <p>
+                                        As neurons are interconnected with neighboring layers, inputs are successively transmitted
+                                        between neurons with applied weights and biases. The processing of each neuron occurs in
+                                        two steps:
+                                    </p>
+
+                                    <Definition term="Pre-activation">
+                                        The weighted sum of inputs with biasing, computed as:
+                                        <Equation>n = W<sup>T</sup> · a + b</Equation>
+                                    </Definition>
+
+                                    <Definition term="Activation">
+                                        The sum is passed through an activation function σ that introduces non-linearity:
+                                        <Equation>a = σ(n)</Equation>
+                                    </Definition>
+
+                                    <p>
+                                        The sigmoid function is used as the activation function in hidden layers:
+                                    </p>
+
+                                    <Equation number="3">
+                                        σ(x) = 1 / (1 + e<sup>−x</sup>)
+                                    </Equation>
+
+                                    <p>With derivative:</p>
+
+                                    <Equation number="4">
+                                        σ′(x) = e<sup>−x</sup> / (1 + e<sup>−x</sup>)<sup>2</sup>
+                                    </Equation>
+
+                                    <p>
+                                        For the output layer, the softmax function enables multi-class classification:
+                                    </p>
+
+                                    <Equation number="5">
+                                        softmax(x<sub>i</sub>) = e<sup>x<sub>i</sub></sup> / Σ<sub>j</sub> e<sup>x<sub>j</sub></sup>
+                                    </Equation>
+
+                                    <h3 className="subsection-title">2.2 Backpropagation</h3>
+
+                                    <p>
+                                        From the activation values of the final layer, an error value is calculated and propagated
+                                        backwards through the network. Two methods are implemented:
+                                    </p>
+
+                                    <p>
+                                        <strong>Calculus-based Backpropagation (CB):</strong> Uses the chain rule to compute exact
+                                        gradients. If the backpropagation coefficient of the forward layer is known, the previous
+                                        layer can be calculated:
+                                    </p>
+
+                                    <Equation number="6">
+                                        S<sub>n</sub> = A<sub>n</sub> · W<sub>n+1</sub> · S<sub>n+1</sub>
+                                    </Equation>
+
+                                    <p>
+                                        <strong>Unscaled Heuristic Backpropagation (UHB):</strong> Uses an approximation where
+                                        errors flow back through weight matrices:
+                                    </p>
+
+                                    <Equation number="7">
+                                        e<sub>n</sub> = W<sub>n+1</sub> · e<sub>n+1</sub>
+                                    </Equation>
+
+                                    <Equation number="8">
+                                        S<sub>n</sub> = −2 · A<sub>n</sub> · e<sub>n</sub>
+                                    </Equation>
+
+                                    <h3 className="subsection-title">2.3 Weight Updates</h3>
+
+                                    <p>
+                                        The backpropagation coefficient is used to update weights and biases:
+                                    </p>
+
+                                    <Equation number="9">
+                                        W<sub>n</sub> = W<sub>n</sub> − η · a<sub>n−1</sub> · S<sub>n</sub><sup>T</sup>
+                                    </Equation>
+
+                                    <Equation number="10">
+                                        b<sub>n</sub> = b<sub>n</sub> − η · S<sub>n</sub>
+                                    </Equation>
+
+                                    <p>
+                                        Where η denotes the learning rate, a hyperparameter controlling gradient descent step size.
+                                    </p>
+
+                                    <VideoWalkthrough />
+                                </section>
+                            )}
+
+                            {activeSection === 'experiment' && (
+                                <section className="section">
+                                    <h2 className="section-title">
+                                        <span className="section-number">3</span> Experiment Configuration
+                                        <span className={`gpu-badge ${gpuAvailable ? '' : 'unavailable'}`} style={{ marginLeft: '12px', verticalAlign: 'middle' }}>
+                                            {gpuAvailable ? 'GPU Available' : 'CPU Only'}
+                                        </span>
+                                    </h2>
+
+                                    <p>
+                                        Configure the network architecture and training hyperparameters below. The server-side
+                                        implementation uses the full MNIST dataset with optional GPU acceleration via CuPy.
+                                    </p>
+
+                                    {!gpuAvailable && (
+                                        <div style={{
+                                            margin: '16px 0',
+                                            padding: '16px 20px',
+                                            background: 'rgba(139, 35, 35, 0.08)',
+                                            border: '1px solid rgba(139, 35, 35, 0.2)',
+                                            fontSize: '14px',
+                                            color: 'var(--paper-muted)'
+                                        }}>
+                                            <strong style={{ color: 'var(--paper-accent)' }}>GPU Acceleration:</strong> This hosted version runs on CPU only.
+                                            For GPU-accelerated training, clone the{' '}
+                                            <a href="https://github.com/polyym/Deep-Learning-for-the-MNIST-Data-Set-Python" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--paper-accent)' }}>
+                                                repository
+                                            </a>{' '}
+                                            and run locally with an NVIDIA GPU and CuPy installed.
+                                        </div>
+                                    )}
+
+                                    <div className="config-panel">
+                                        <div className="config-title">Hyperparameters</div>
+                                        <div className="config-grid">
+                                            <div className="config-field">
+                                                <label>Epochs</label>
+                                                <input
+                                                    type="number"
+                                                    value={cfg.epochs}
+                                                    onChange={e => setCfg({ ...cfg, epochs: +e.target.value })}
+                                                />
+                                            </div>
+                                            <div className="config-field">
+                                                <label>Learning Rate (η)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.001"
+                                                    value={cfg.learningRate}
+                                                    onChange={e => setCfg({ ...cfg, learningRate: +e.target.value })}
+                                                />
+                                            </div>
+                                            <div className="config-field">
+                                                <label>Dataset</label>
+                                                <div className="method-toggle">
+                                                    <button
+                                                        className={`method-btn ${cfg.useSmallData ? 'active' : ''}`}
+                                                        onClick={() => setCfg({ ...cfg, useSmallData: true })}
+                                                    >
+                                                        Small (100)
+                                                    </button>
+                                                    <button
+                                                        className={`method-btn ${!cfg.useSmallData ? 'active' : ''}`}
+                                                        onClick={() => setCfg({ ...cfg, useSmallData: false })}
+                                                    >
+                                                        Full (60K)
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div className="config-field">
+                                                <label>Compute Device</label>
+                                                <div className="method-toggle">
+                                                    <button
+                                                        className={`method-btn ${cfg.useGpu ? 'active' : ''}`}
+                                                        onClick={() => setCfg({ ...cfg, useGpu: true })}
+                                                        disabled={!gpuAvailable}
+                                                    >
+                                                        GPU {!gpuAvailable && '(N/A)'}
+                                                    </button>
+                                                    <button
+                                                        className={`method-btn ${!cfg.useGpu ? 'active' : ''}`}
+                                                        onClick={() => setCfg({ ...cfg, useGpu: false })}
+                                                    >
+                                                        CPU
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div className="config-field" style={{ gridColumn: 'span 2' }}>
+                                                <label>Backpropagation Method</label>
+                                                <div className="method-toggle">
+                                                    <button
+                                                        className={`method-btn ${cfg.backpropMethod === 'cb' ? 'active' : ''}`}
+                                                        onClick={() => setCfg({ ...cfg, backpropMethod: 'cb' })}
+                                                    >
+                                                        Calculus-based (CB)
+                                                    </button>
+                                                    <button
+                                                        className={`method-btn ${cfg.backpropMethod === 'uhb' ? 'active' : ''}`}
+                                                        onClick={() => setCfg({ ...cfg, backpropMethod: 'uhb' })}
+                                                    >
+                                                        Unscaled Heuristic (UHB)
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div className="config-field hidden-config">
+                                                <label>Hidden Layer Neurons (U, V, W)</label>
+                                                <div className="hidden-inputs">
+                                                    <input
+                                                        type="number"
+                                                        value={cfg.hiddenU}
+                                                        onChange={e => setCfg({ ...cfg, hiddenU: +e.target.value })}
+                                                    />
+                                                    <input
+                                                        type="number"
+                                                        value={cfg.hiddenV}
+                                                        onChange={e => setCfg({ ...cfg, hiddenV: +e.target.value })}
+                                                    />
+                                                    <input
+                                                        type="number"
+                                                        value={cfg.hiddenW}
+                                                        onChange={e => setCfg({ ...cfg, hiddenW: +e.target.value })}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="config-field hidden-config">
+                                                <label>Digits to Classify (A, B, C, D)</label>
+                                                <div className="digits-inputs">
+                                                    {['digitA', 'digitB', 'digitC', 'digitD'].map(k => (
+                                                        <select
+                                                            key={k}
+                                                            value={cfg[k]}
+                                                            onChange={e => setCfg({ ...cfg, [k]: +e.target.value })}
+                                                        >
+                                                            {[0,1,2,3,4,5,6,7,8,9].map(d => (
+                                                                <option key={d} value={d}>{d}</option>
+                                                            ))}
+                                                        </select>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <button
+                                                className="train-btn"
+                                                onClick={train}
+                                                disabled={training}
+                                            >
+                                                {training ? 'Training in Progress...' : 'Begin Training'}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <Figure number="1" caption="Network architecture showing input layer (784 neurons), three hidden layers with configurable sizes, and output layer (5 neurons).">
+                                        <div className="network-diagram">
+                                            {[
+                                                ['Input', 784],
+                                                ['Hidden₁', cfg.hiddenU],
+                                                ['Hidden₂', cfg.hiddenV],
+                                                ['Hidden₃', cfg.hiddenW],
+                                                ['Output', 5]
+                                            ].map(([name, count], i, arr) => (
+                                                <React.Fragment key={name}>
+                                                    <div className="layer">
+                                                        <span className="layer-label">{name}</span>
+                                                        {[...Array(4)].map((_, j) => <div key={j} className="neuron" />)}
+                                                        <span className="layer-count">n = {count}</span>
+                                                    </div>
+                                                    {i < arr.length - 1 && <div className="connection" />}
+                                                </React.Fragment>
+                                            ))}
+                                        </div>
+                                    </Figure>
+
+                                    {training && (
+                                        <div className="training-status">
+                                            <div className="training-spinner" />
+                                            <p><strong>Training Neural Network</strong></p>
+                                            <div className="progress-bar">
+                                                <div className="progress-fill" style={{ width: `${(progress.epoch / cfg.epochs) * 100}%` }} />
+                                            </div>
+                                            <div className="progress-stats">
+                                                <span>
+                                                    Epoch {Math.floor(progress.epoch)} / {cfg.epochs}
+                                                    {progress.samples_done && progress.total_samples ?
+                                                        ` (${progress.samples_done.toLocaleString()} / ${progress.total_samples.toLocaleString()} samples)` :
+                                                        (progress.epoch % 1 > 0 ? ` (${Math.round((progress.epoch % 1) * 100)}% of epoch)` : '')
+                                                    }
+                                                </span>
+                                                <span>Loss: {(progress.loss || 0).toFixed(1)} · Accuracy: {(progress.accuracy || 0).toFixed(1)}%</span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <h3 className="subsection-title">3.1 Published Results</h3>
+
+                                    <p>
+                                        The original MATLAB implementation achieved the following results on the full MNIST dataset:
+                                    </p>
+
+                                    <table className="data-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Method</th>
+                                                <th>Epochs</th>
+                                                <th>Learning Rate</th>
+                                                <th>Train Acc.</th>
+                                                <th>Test Acc.</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>UHB</td>
+                                                <td>200</td>
+                                                <td>0.001</td>
+                                                <td>100%</td>
+                                                <td>97.96%</td>
+                                            </tr>
+                                            <tr>
+                                                <td>CB</td>
+                                                <td>100</td>
+                                                <td>0.01</td>
+                                                <td>100%</td>
+                                                <td>98.11%</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </section>
+                            )}
+
+                            {activeSection === 'results' && (
+                                <section className="section">
+                                    <h2 className="section-title"><span className="section-number">4</span> Results</h2>
+
+                                    {results ? (
+                                        <>
+                                            <div className="results-grid">
+                                                <div className="result-card">
+                                                    <div className="result-value">{results.testing?.accuracy?.toFixed(1) || 0}%</div>
+                                                    <div className="result-label">Test Accuracy</div>
+                                                </div>
+                                                <div className="result-card">
+                                                    <div className="result-value">{results.config?.epochs || 0}</div>
+                                                    <div className="result-label">Total Epochs</div>
+                                                </div>
+                                                <div className="result-card">
+                                                    <div className="result-value">{(results.config?.backpropMethod || 'cb').toUpperCase()}</div>
+                                                    <div className="result-label">Method</div>
+                                                </div>
+                                            </div>
+
+                                            <Figure number="2" caption="Cross-entropy loss function plotted against training epochs, demonstrating convergence behavior.">
+                                                <div className="loss-chart">
+                                                    {lossHistory.map((l, i) => (
+                                                        <div
+                                                            key={i}
+                                                            className="loss-bar"
+                                                            style={{ height: `${(l / maxLoss) * 160}px` }}
+                                                        />
+                                                    ))}
+                                                </div>
+                                                <div className="chart-labels">
+                                                    <span>Epoch 1</span>
+                                                    <span>Epoch {lossHistory.length}</span>
+                                                </div>
+                                            </Figure>
+
+                                            <h3 className="subsection-title">4.1 Confusion Matrices</h3>
+
+                                            <div className="matrix-container">
+                                                <ConfusionMatrix
+                                                    matrix={results.training?.confusion_matrix}
+                                                    labels={labels}
+                                                    title="Training Set"
+                                                />
+                                                <ConfusionMatrix
+                                                    matrix={results.testing?.confusion_matrix}
+                                                    labels={labels}
+                                                    title="Testing Set"
+                                                />
+                                            </div>
+
+                                            {samples.length > 0 && (
+                                                <Figure number="3" caption="Sample predictions from the test set. Green borders indicate correct classifications; red borders indicate misclassifications.">
+                                                    <div className="samples-grid">
+                                                        {samples.map((p, i) => {
+                                                            const correct = String(p.true_label) === p.predicted ||
+                                                                (p.predicted === 'None' && !digits.includes(p.true_label));
+                                                            return (
+                                                                <div key={i} className={`sample-card ${correct ? 'correct' : 'incorrect'}`}>
+                                                                    <img src={renderImg(p.image)} className="sample-img" alt={`Sample ${i}`} />
+                                                                    <div className="sample-labels">
+                                                                        True: {p.true_label}<br />Pred: {p.predicted}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </Figure>
+                                            )}
+
+                                            <h3 className="subsection-title">4.2 Discussion</h3>
+
+                                            <p>
+                                                The training results demonstrate successful convergence of the loss function over the
+                                                specified epochs. The {results.config?.backpropMethod === 'cb' ? 'Calculus-based' : 'Unscaled Heuristic'}
+                                                {' '}backpropagation method achieved a final test accuracy of {results.testing?.accuracy?.toFixed(1)}%
+                                                with a learning rate of {results.config?.learningRate}.
+                                            </p>
+                                        </>
+                                    ) : (
+                                        <div className="empty-state">
+                                            <div className="empty-icon">○</div>
+                                            <p><strong>No Results Available</strong></p>
+                                            <p>Configure hyperparameters and train the network in Section 3 to view results.</p>
+                                        </div>
+                                    )}
+                                </section>
+                            )}
+
+                            {activeSection === 'interactive' && (
+                                <section className="section">
+                                    <h2 className="section-title"><span className="section-number">5</span> Interactive Demo</h2>
+
+                                    {results && results.config?.useSmallData ? (
+                                        /* Small dataset - show informative message instead of demo */
+                                        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                                            <div style={{
+                                                width: '120px',
+                                                height: '120px',
+                                                margin: '0 auto 24px',
+                                                background: 'var(--paper-highlight)',
+                                                border: '2px solid var(--paper-border)',
+                                                borderRadius: '8px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
+                                            }}>
+                                                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--paper-accent)" strokeWidth="1.5">
+                                                    <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                                                    <path d="M2 17l10 5 10-5" />
+                                                    <path d="M2 12l10 5 10-5" />
+                                                </svg>
+                                            </div>
+                                            <h3 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '16px', color: 'var(--paper-text)' }}>
+                                                Full Dataset Required
+                                            </h3>
+                                            <p style={{ maxWidth: '500px', margin: '0 auto 24px', color: 'var(--paper-muted)', lineHeight: '1.7' }}>
+                                                The interactive drawing demo requires a model trained on the full MNIST dataset (60,000 samples)
+                                                to achieve reliable predictions. Models trained on the small dataset (100 samples) lack sufficient
+                                                training data to generalize to hand-drawn input.
+                                            </p>
+                                            <div style={{
+                                                background: 'var(--paper-highlight)',
+                                                border: '1px solid var(--paper-border)',
+                                                padding: '20px 24px',
+                                                maxWidth: '450px',
+                                                margin: '0 auto',
+                                                textAlign: 'left'
+                                            }}>
+                                                <div style={{ fontSize: '12px', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--paper-accent)', marginBottom: '12px' }}>
+                                                    To enable the demo:
+                                                </div>
+                                                <ol style={{ paddingLeft: '20px', fontSize: '14px', color: 'var(--paper-muted)', lineHeight: '1.8' }}>
+                                                    <li>Go to <strong>Section 3: Experiment</strong></li>
+                                                    <li>Select <strong>Full (60K)</strong> dataset</li>
+                                                    <li>Click <strong>Begin Training</strong></li>
+                                                    <li>Wait for training to complete (~30 minutes on CPU)</li>
+                                                </ol>
+                                            </div>
+                                            <p style={{ marginTop: '24px', fontSize: '13px', color: 'var(--paper-light)', fontStyle: 'italic' }}>
+                                                Training accuracy: {results.training?.accuracy?.toFixed(1)}% | Test accuracy: {results.testing?.accuracy?.toFixed(1)}%
+                                            </p>
+                                        </div>
+                                    ) : results ? (
+                                        /* Full dataset - show interactive demo */
+                                        <>
+                                            <p>
+                                                Draw a digit in the canvas below to test the trained network's classification capabilities.
+                                                The network has been trained to recognize digits {digits.join(', ')} and will classify
+                                                all other inputs as "None".
+                                            </p>
+
+                                            <div className="draw-section">
+                                                <div className="canvas-wrapper">
+                                                    <canvas
+                                                        ref={canvasRef}
+                                                        width={224}
+                                                        height={224}
+                                                        className="draw-canvas"
+                                                        onMouseDown={startDrawing}
+                                                        onMouseMove={handleDraw}
+                                                        onMouseUp={stopDrawing}
+                                                        onMouseLeave={stopDrawing}
+                                                        onTouchStart={startDrawing}
+                                                        onTouchMove={handleDraw}
+                                                        onTouchEnd={stopDrawing}
+                                                    />
+                                                    <div className="canvas-controls">
+                                                        <button className="canvas-btn" onClick={clearCanvas}>Clear</button>
+                                                        <button className="canvas-btn primary" onClick={predictDrawing}>Classify</button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="prediction-result">
+                                                    {drawPred ? (
+                                                        <>
+                                                            <div className="predicted-digit">{drawPred.prediction}</div>
+                                                            <p style={{ marginBottom: '16px', fontSize: '14px', color: 'var(--paper-muted)' }}>
+                                                                <strong>Class Probabilities:</strong>
+                                                            </p>
+                                                            {Object.entries(drawPred.probabilities).map(([label, prob]) => (
+                                                                <div key={label} className="prob-row">
+                                                                    <span className="prob-label">{label}</span>
+                                                                    <div className="prob-track">
+                                                                        <div className="prob-fill" style={{ width: `${prob * 100}%` }} />
+                                                                    </div>
+                                                                    <span className="prob-value">{(prob * 100).toFixed(1)}%</span>
+                                                                </div>
+                                                            ))}
+                                                        </>
+                                                    ) : (
+                                                        <div className="empty-state" style={{ padding: '40px 20px' }}>
+                                                            <p>Draw a digit and click <strong>Classify</strong></p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="empty-state">
+                                            <div className="empty-icon">✎</div>
+                                            <p><strong>Network Not Trained</strong></p>
+                                            <p>Train the network in Section 3 to enable the interactive drawing demo.</p>
+                                        </div>
+                                    )}
+                                </section>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <footer className="paper-footer">
+                            <div style={{ fontSize: '12px', fontWeight: '700', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px', color: 'var(--paper-accent)', textAlign: 'center' }}>
+                                Source Code & Documentation
+                            </div>
+                            <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--paper-muted)', marginBottom: '12px' }}>
+                                This web app is a Python port of the original MATLAB implementation. View the source code and academic report below.
+                            </p>
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: '24px', fontSize: '14px', flexWrap: 'wrap' }}>
+                                <a href="https://github.com/polyym/Deep-Learning-for-the-MNIST-Data-Set-Python" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--paper-accent)' }}>
+                                    GitHub (Python)
+                                </a>
+                                <span style={{ color: 'var(--paper-light)' }}>·</span>
+                                <a href="https://github.com/polyym/Deep-Learning-for-the-MNIST-Data-Set" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--paper-accent)' }}>
+                                    GitHub (MATLAB)
+                                </a>
+                                <span style={{ color: 'var(--paper-light)' }}>·</span>
+                                <a href="https://github.com/polyym/Deep-Learning-for-the-MNIST-Data-Set/blob/main/1923114_Report.pdf" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--paper-accent)' }}>
+                                    Report (PDF)
+                                </a>
+                            </div>
+                        </footer>
+                    </article>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
