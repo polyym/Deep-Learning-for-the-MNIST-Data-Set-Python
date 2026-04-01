@@ -325,8 +325,4 @@ The included `mnist_train_100.csv` has only 100 samples. For the full 60,000 tra
 
 ## Credits
 
-Converted from MATLAB implementation by Hadi K for the MA2647 Deep Learning course.
-
-## License
-
-Educational use only.
+Converted from MATLAB implementation by Hadi for the MA2647 Deep Learning course.
