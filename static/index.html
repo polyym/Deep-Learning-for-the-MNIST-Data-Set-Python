@@ -902,6 +902,7 @@
             const [cfg, setCfg] = useState({
                 epochs: 50,
                 learningRate: 0.01,
+                batchSize: 32,
                 useSmallData: true,
                 useGpu: false,
                 backpropMethod: 'cb',
@@ -930,12 +931,20 @@
             // Post-training nav timer. Stored in a ref (not state) so it
             // survives re-renders and can be cancelled if the user restarts
             // training before the 1.8s delay elapses.
+            //
+            // ``postTrainNavArmedRef`` guards against the race where multiple
+            // polling ticks (each 500ms) land on a done-training response and
+            // each re-schedule the timer: without the guard the timer drifts
+            // past the point where the user has already manually navigated
+            // elsewhere, and then fires, yanking them back to Results.
             const postTrainNavTimerRef = useRef(null);
+            const postTrainNavArmedRef = useRef(false);
             const clearPostTrainNav = () => {
                 if (postTrainNavTimerRef.current !== null) {
                     clearTimeout(postTrainNavTimerRef.current);
                     postTrainNavTimerRef.current = null;
                 }
+                postTrainNavArmedRef.current = false;
             };
 
             // Check GPU availability on mount
@@ -967,6 +976,12 @@
                             } else if (last && last.error) {
                                 setTrainError(last.error);
                             } else if (s.has_results) {
+                                // Only arm the nav once per completion; later ticks
+                                // that race with our own setTraining(false) must not
+                                // reschedule or the timer drifts past manual navs.
+                                if (postTrainNavArmedRef.current) return;
+                                postTrainNavArmedRef.current = true;
+
                                 const r = await api.results();
                                 setResults(r);
                                 setLossHistory(r.history?.loss_history || []);
@@ -983,7 +998,6 @@
                                         ? `Training complete, test accuracy ${testAcc.toFixed(1)}%. Opening Results…`
                                         : 'Training complete. Opening Results…'
                                 );
-                                clearPostTrainNav();
                                 postTrainNavTimerRef.current = setTimeout(() => {
                                     setActiveSection('results');
                                     setTrainNotice(null);
@@ -1190,7 +1204,13 @@
                                 <button
                                     key={key}
                                     className={`nav-btn ${activeSection === key ? 'active' : ''}`}
-                                    onClick={() => setActiveSection(key)}
+                                    onClick={() => {
+                                        // Manual nav cancels the auto-nav to
+                                        // Results; otherwise it fires later and
+                                        // yanks the user off their chosen tab.
+                                        clearPostTrainNav();
+                                        setActiveSection(key);
+                                    }}
                                 >
                                     {label}
                                 </button>
@@ -1412,6 +1432,9 @@
                                                         <strong>{results.config?.backpropMethod === 'cb' ? 'Calculus-Based' : 'Unscaled Heuristic'}</strong>
                                                         {' · '}
                                                         lr {results.config?.learningRate}
+                                                        {results.config?.batchSize != null && (
+                                                            <> {' · '} batch {results.config.batchSize}</>
+                                                        )}
                                                         {' · '}
                                                         digits {results.config?.digits?.join(', ')}
                                                     </div>
@@ -1489,6 +1512,16 @@
                                                         CPU
                                                     </button>
                                                 </div>
+                                            </div>
+                                            <div className="config-field" style={{ gridColumn: 'span 2' }}>
+                                                <label>Batch Size (1 = online SGD)</label>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    max="4096"
+                                                    value={cfg.batchSize}
+                                                    onChange={e => setCfg({ ...cfg, batchSize: +e.target.value })}
+                                                />
                                             </div>
                                             <div className="config-field" style={{ gridColumn: 'span 2' }}>
                                                 <label>Backpropagation Method</label>

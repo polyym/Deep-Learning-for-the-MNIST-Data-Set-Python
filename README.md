@@ -75,7 +75,7 @@ mnist-ann                   # or: python -m mnist_ann
 ### Quick Test
 1. Leave all settings at defaults
 2. Click **"Begin Training"**
-3. Wait for training to complete (~10 seconds with small dataset)
+3. Wait for training to complete (~1–2 seconds on the small dataset with the default batch size of 32)
 4. Navigate to **Section 4: Results** to view loss curves and confusion matrices
 5. Try **Section 5: Interactive Demo** to test your own handwriting
 
@@ -83,7 +83,7 @@ mnist-ann                   # or: python -m mnist_ann
 
 ## GPU Acceleration (Optional)
 
-This implementation uses **online SGD**, one forward/backward pass and weight update per sample. With the default hidden-layer sizes (64/32/16), per-operation GPU kernel-launch overhead dominates the actual compute, so **CPU is typically faster than GPU in the default configuration**. GPU becomes worthwhile once you enlarge hidden layers significantly (roughly 512+ neurons per layer).
+This implementation uses **mini-batch SGD** (default batch size 32; set `batchSize=1` to recover the original online SGD). Gradients are averaged over the batch in `update_weights`, so the learning rate keeps its per-sample interpretation regardless of batch size. With the default hidden-layer sizes (64/32/16), per-operation GPU kernel-launch overhead can still dominate at small batch sizes, so **CPU is often competitive with GPU in the default configuration**. GPU becomes clearly worthwhile once you enlarge hidden layers significantly (roughly 512+ neurons per layer) or increase the batch size.
 
 The hosted version on Render runs on CPU only; running locally with or without GPU is a question of whether you want the CuPy backend available, not a requirement for reasonable performance.
 
@@ -150,7 +150,7 @@ python -c "import cupy; print(cupy.cuda.runtime.getDeviceCount())"
 - Try pre-built wheels: `pip install cupy-cuda12x --no-cache-dir`
 
 **Out of memory errors:**
-- Reduce batch size (this implementation uses online learning, so memory usage is minimal)
+- Reduce `batchSize` on the training form (defaults to 32; 1 = online SGD)
 - Close other GPU applications
 
 ---
@@ -245,6 +245,8 @@ Deep-Learning-for-the-MNIST-Data-Set-Python/
 │   ├── test_data.py
 │   ├── test_endpoints.py
 │   ├── test_errors.py
+│   ├── test_gpu_smoke.py       # GPU code paths via numpy-as-CuPy monkeypatch
+│   ├── test_integration.py     # Real HTTP train -> status -> predict cycle
 │   ├── test_network.py
 │   ├── test_preprocessing.py
 │   ├── test_state.py
@@ -266,6 +268,7 @@ Deep-Learning-for-the-MNIST-Data-Set-Python/
 |-----------|-------------|---------|
 | Epochs | Number of training iterations | 50 |
 | Learning Rate | Step size for gradient descent | 0.01 |
+| Batch Size | Samples per gradient update (1 = online SGD) | 32 |
 | Dataset Size | Small (100/10) or Full (60K/10K) | Small |
 | Compute Device | GPU (if available) or CPU | CPU |
 | Backprop Method | CB (calculus) or UHB (heuristic) | CB |
@@ -325,10 +328,15 @@ S_n = -2 * A_n * e_n
 ```
 
 ### Weight Update
+
+Gradients are averaged over the mini-batch so the learning rate keeps its per-sample interpretation regardless of batch size:
+
 ```
-W_n = W_n - lr * a_{n-1} * S_n^T
-b_n = b_n - lr * S_n
+W_n = W_n - (lr / N) * a_{n-1} @ S_n^T
+b_n = b_n - (lr / N) * sum(S_n, axis=batch)
 ```
+
+Here `N` is the current batch size (1 recovers online SGD exactly). The weight update `a @ S^T` already sums contributions across the batch dimension; biases must be summed explicitly across that axis or they'd broadcast and corrupt the network.
 
 ### Loss Function
 Cross-entropy loss:
@@ -358,9 +366,11 @@ Canvas PNGs already have a bright digit on a dark background (matching MNIST pol
 
 ## Testing
 
-The package ships with a pytest suite covering validators, HTTP endpoints,
-state management, error handlers, canvas preprocessing, and the neural
-network's math.
+The package ships with a pytest suite covering validators, HTTP endpoints
+(including a real end-to-end `train -> status -> predict` cycle),
+state management, error handlers, canvas preprocessing, the neural
+network's math, and the GPU code paths (exercised in CI via a
+numpy-as-CuPy monkeypatch since the GitHub runner has no GPU).
 
 ```bash
 # uv (recommended; auto-installs the [test] extra into .venv on first run)
@@ -393,7 +403,7 @@ uv sync                          # or: pip install -e .
 ### Training is slow
 - Use the **"Small"** dataset option for quick testing
 - On the full dataset (60K samples), roughly **15-25 minutes** for 50 epochs on a modern CPU
-- **Prefer CPU for the default layer sizes.** GPU is slower here because of per-op kernel-launch overhead in the online-SGD loop (see the GPU Acceleration section). Enable GPU only if you widen hidden layers significantly
+- **Prefer CPU for the default layer sizes.** GPU's win depends on batch size and layer width; at the shipped defaults the per-op kernel-launch overhead can still outweigh the compute (see the GPU Acceleration section). Enable GPU if you widen hidden layers significantly or use large batch sizes
 - You can **Cancel Training** mid-run from the UI if you just want to check a checkpoint; results and the trained model are only published once a full run completes, so cancelling leaves the previously trained model intact
 
 ### Drawing prediction not working

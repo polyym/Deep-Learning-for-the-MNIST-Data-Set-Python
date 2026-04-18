@@ -12,6 +12,8 @@ import logging
 import os
 from typing import Any
 
+import numpy as np
+
 logger = logging.getLogger(__name__)
 
 GPU_AVAILABLE: bool = False
@@ -38,6 +40,9 @@ def _setup_cuda_path() -> None:
         os.environ["PATH"] = cuda_bin + os.pathsep + os.environ.get("PATH", "")
 
 
+_GPU_SELFTEST_SUM = 10.0  # expected ``cp.sum(cp.ones(10))``
+
+
 def _detect_gpu() -> None:
     """Probe for a working CuPy+CUDA install and set the array backend.
 
@@ -53,6 +58,8 @@ def _detect_gpu() -> None:
     _setup_cuda_path()
 
     try:
+        # CuPy is an optional extra; importing at module scope would make
+        # `pip install .` without the GPU extra fail on import.
         import cupy as cp
 
         device_count = cp.cuda.runtime.getDeviceCount()
@@ -63,7 +70,7 @@ def _detect_gpu() -> None:
         # without requiring the nvrtc JIT compiler.
         test_arr = cp.zeros(10, dtype=cp.float32)
         test_arr += 1.0
-        if float(cp.sum(test_arr)) != 10.0:
+        if float(cp.sum(test_arr)) != _GPU_SELFTEST_SUM:
             raise RuntimeError("GPU computation test failed")
         del test_arr
 
@@ -72,8 +79,6 @@ def _detect_gpu() -> None:
         device_name = cp.cuda.runtime.getDeviceProperties(0)["name"].decode("utf-8")
         logger.info("GPU detected: %s - using CuPy acceleration", device_name)
     except Exception as e:
-        import numpy as np
-
         _xp = np
         GPU_AVAILABLE = False
         # Only surface the specific error when CuPy was installed but failed.

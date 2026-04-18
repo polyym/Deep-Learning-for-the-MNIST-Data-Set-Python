@@ -127,7 +127,7 @@ class TestCancelEndpoint:
             assert training_state.should_cancel() is True
         finally:
             training_state.is_training = False
-            training_state._cancel_event.clear()
+            training_state.reset()
 
 
 class TestResultsEndpoint:
@@ -156,7 +156,7 @@ class TestPredictEndpoint:
         assert response.status_code == 400
 
     def test_predict_requires_image(self, client):
-        training_state._network = True  # mock: bypass the "no model" branch
+        training_state.network = True  # mock: bypass the "no model" branch
         response = client.post(
             "/api/predict",
             data=json.dumps({}),

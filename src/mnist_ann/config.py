@@ -49,13 +49,17 @@ DEFAULT_DATA_DIR: Path = _resolve_resource_dir("DATA_DIR", "data")
 # Runtime settings (env-var overridable)
 # ---------------------------------------------------------------------------
 DEBUG: bool = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
-PORT: int = int(os.environ.get("PORT", 5000))
+PORT: int = int(os.environ.get("PORT", "5000"))
 HOST: str = os.environ.get("HOST", "0.0.0.0")
 ALLOWED_ORIGINS: str = os.environ.get("ALLOWED_ORIGINS", "*")
-MAX_CONTENT_LENGTH: int = int(os.environ.get("MAX_CONTENT_LENGTH", 16 * 1024 * 1024))
+MAX_CONTENT_LENGTH: int = int(
+    os.environ.get("MAX_CONTENT_LENGTH", str(16 * 1024 * 1024))
+)
 DATA_DIR: str = str(DEFAULT_DATA_DIR)
 LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO").upper()
-RATE_LIMIT_ENABLED: bool = os.environ.get("RATE_LIMIT_ENABLED", "true").lower() == "true"
+RATE_LIMIT_ENABLED: bool = (
+    os.environ.get("RATE_LIMIT_ENABLED", "true").lower() == "true"
+)
 
 
 def configure_logging() -> None:

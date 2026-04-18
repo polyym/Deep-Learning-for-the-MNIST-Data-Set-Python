@@ -13,7 +13,7 @@ import time
 from io import BytesIO
 
 from flask import Blueprint, current_app, jsonify, request, send_from_directory
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 from .backend import GPU_AVAILABLE
 from .data import get_data_path, load_mnist_data
@@ -88,29 +88,47 @@ def train_network():
     data = request.json
 
     try:
-        n_epochs = validate_int(data.get("epochs"), "epochs", min_val=1, max_val=10000, default=100)
+        n_epochs = validate_int(
+            data.get("epochs"), "epochs",
+            min_val=1, max_val=10000, default=100,
+        )
         learning_rate = validate_float(
-            data.get("learningRate"), "learningRate", min_val=0.0001, max_val=10.0, default=0.01
+            data.get("learningRate"), "learningRate",
+            min_val=0.0001, max_val=10.0, default=0.01,
+        )
+        batch_size = validate_int(
+            data.get("batchSize"), "batchSize",
+            min_val=1, max_val=4096, default=32,
         )
         use_small_data = bool(data.get("useSmallData", True))
         use_gpu = bool(data.get("useGpu", True))
         backprop_method = validate_choice(
-            data.get("backpropMethod"), "backpropMethod", ["cb", "uhb"], default="cb"
+            data.get("backpropMethod"), "backpropMethod",
+            ["cb", "uhb"], default="cb",
         )
-        hidden_u = validate_int(data.get("hiddenU"), "hiddenU", min_val=1, max_val=1024, default=64)
-        hidden_v = validate_int(data.get("hiddenV"), "hiddenV", min_val=1, max_val=1024, default=32)
-        hidden_w = validate_int(data.get("hiddenW"), "hiddenW", min_val=1, max_val=1024, default=16)
+        hidden_u = validate_int(
+            data.get("hiddenU"), "hiddenU",
+            min_val=1, max_val=1024, default=64,
+        )
+        hidden_v = validate_int(
+            data.get("hiddenV"), "hiddenV",
+            min_val=1, max_val=1024, default=32,
+        )
+        hidden_w = validate_int(
+            data.get("hiddenW"), "hiddenW",
+            min_val=1, max_val=1024, default=16,
+        )
         digit_a = validate_digit(data.get("digitA"), "digitA", default=0)
         digit_b = validate_digit(data.get("digitB"), "digitB", default=1)
         digit_c = validate_digit(data.get("digitC"), "digitC", default=2)
         digit_d = validate_digit(data.get("digitD"), "digitD", default=3)
 
         digits = [digit_a, digit_b, digit_c, digit_d]
-        if len(set(digits)) != 4:
+        if len(set(digits)) != len(digits):
             raise ValidationError("All four digits must be unique")
 
     except ValidationError as e:
-        logger.warning(f"Training request validation failed: {e}")
+        logger.warning("Training request validation failed: %s", e)
         return jsonify({"error": str(e)}), 400
 
     # Atomically claim the training slot; rejects concurrent requests
@@ -123,8 +141,10 @@ def train_network():
 
     gpu_status = "GPU" if (use_gpu and GPU_AVAILABLE) else "CPU"
     logger.info(
-        f"Starting training [{gpu_status}]: epochs={n_epochs}, lr={learning_rate}, "
-        f"method={backprop_method}, hidden=({hidden_u},{hidden_v},{hidden_w}), digits={digits}"
+        "Starting training [%s]: epochs=%d, lr=%s, batch_size=%d, method=%s, "
+        "hidden=(%d,%d,%d), digits=%s",
+        gpu_status, n_epochs, learning_rate, batch_size, backprop_method,
+        hidden_u, hidden_v, hidden_w, digits,
     )
 
     def progress_callback(info):
@@ -161,11 +181,12 @@ def train_network():
             train_path = get_data_path(use_small_data, train=True)
             X_train, labels_train = load_mnist_data(train_path)
             Y_train = nn.one_hot_encode(labels_train)
-            logger.info(f"Loaded training data: {X_train.shape[1]} samples")
+            logger.info("Loaded training data: %d samples", X_train.shape[1])
 
             history = nn.train(
                 X_train, Y_train,
                 n_epochs=n_epochs,
+                batch_size=batch_size,
                 backprop_method=backprop_method,
                 progress_callback=progress_callback,
                 should_cancel=training_state.should_cancel,
@@ -201,8 +222,8 @@ def train_network():
             test_results = nn.evaluate(X_test, Y_test)
 
             logger.info(
-                f"Training complete: train_acc={train_results['accuracy']:.4f}, "
-                f"test_acc={test_results['accuracy']:.4f}"
+                "Training complete: train_acc=%.4f, test_acc=%.4f",
+                train_results["accuracy"], test_results["accuracy"],
             )
 
             # Publish the model and results only on full success.
@@ -214,6 +235,7 @@ def train_network():
                 "config": {
                     "epochs": n_epochs,
                     "learningRate": learning_rate,
+                    "batchSize": batch_size,
                     "backpropMethod": backprop_method,
                     "hiddenLayers": [hidden_u, hidden_v, hidden_w],
                     "digits": digits,
@@ -290,7 +312,10 @@ def predict():
 
     try:
         if "base64," in image_data:
-            image_data = image_data.split("base64,")[1]
+            # ``maxsplit=1`` so a stray "base64," later in the payload
+            # (astronomically unlikely -- comma isn't in the base64
+            # alphabet -- but defensive) can't drop the real payload.
+            image_data = image_data.split("base64,", 1)[1]
 
         image_bytes = base64.b64decode(image_data)
         image = Image.open(BytesIO(image_bytes))
@@ -304,22 +329,25 @@ def predict():
         pred_class, probabilities = nn.predict(X)
         predicted_digit = nn.get_digit_label(pred_class[0])
 
-        logger.debug(f"Prediction made: {predicted_digit}")
+        logger.debug("Prediction made: %s", predicted_digit)
 
         return jsonify({
             "prediction": predicted_digit,
             "class_index": int(pred_class[0]),
             "probabilities": {
-                str(nn.A): float(probabilities[0, 0]),
-                str(nn.B): float(probabilities[1, 0]),
-                str(nn.C): float(probabilities[2, 0]),
-                str(nn.D): float(probabilities[3, 0]),
-                "None": float(probabilities[4, 0]),
+                label: float(probabilities[i, 0])
+                for i, label in enumerate(nn.class_labels)
             },
         })
     except base64.binascii.Error:
         logger.warning("Invalid base64 image data received")
         return jsonify({"error": "Invalid base64 image data"}), 400
+    except (UnidentifiedImageError, ValueError, OSError):
+        # PIL raises UnidentifiedImageError for non-image data, ValueError for
+        # malformed images, and OSError for truncated streams. Predictable
+        # client-side errors, not server bugs -> 400, not 500.
+        logger.warning("Invalid image payload")
+        return jsonify({"error": "Invalid image payload"}), 400
     except Exception:
         logger.exception("Prediction failed")
         return jsonify({"error": "Prediction failed"}), 500
@@ -359,8 +387,9 @@ def get_sample_images():
 
         return jsonify({"samples": samples})
     except FileNotFoundError as e:
-        logger.error(f"Sample images failed: {e}")
+        logger.error("Sample images failed: %s", e)
         return jsonify({"error": "Test dataset not found"}), 500
-    except Exception:
-        logger.exception("Failed to get sample images")
+    except (OSError, ValueError):
+        # Corrupted CSV / disk errors; log then surface a generic 500.
+        logger.exception("Failed to read sample test data")
         return jsonify({"error": "Failed to load sample images"}), 500

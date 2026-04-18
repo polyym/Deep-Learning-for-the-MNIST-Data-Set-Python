@@ -1,9 +1,24 @@
-"""Canvas-drawing -> MNIST-style network input."""
+"""Canvas-drawing -> MNIST-style network input.
+
+Typical usage example::
+
+    from PIL import Image
+    from mnist_ann.preprocessing import preprocess_drawing
+
+    img = Image.open("user_drawing.png")
+    processed = preprocess_drawing(img)   # (28, 28) float32 in [0, 1]
+    X = processed.flatten()               # shape (784,) for NeuralNetwork.predict
+"""
 
 from __future__ import annotations
 
 import numpy as np
 from PIL import Image
+
+# Any pixel below this is treated as background. The canvas paints a
+# ``#1a1a1a`` (~0.10) baseline; thresholding at 0.15 kills that without
+# nibbling the drawn stroke (which clamps near 0.91).
+_BG_THRESHOLD = 0.15
 
 
 def preprocess_drawing(pil_image: Image.Image) -> np.ndarray:
@@ -27,8 +42,7 @@ def preprocess_drawing(pil_image: Image.Image) -> np.ndarray:
     """
     arr = np.array(pil_image.convert("L"), dtype=np.float32) / 255.0
 
-    # Kill the #1a1a1a baseline noise (~0.10). Anything below stays background.
-    arr[arr < 0.15] = 0.0
+    arr[arr < _BG_THRESHOLD] = 0.0
 
     nonzero_rows = np.any(arr > 0, axis=1)
     nonzero_cols = np.any(arr > 0, axis=0)
@@ -41,9 +55,9 @@ def preprocess_drawing(pil_image: Image.Image) -> np.ndarray:
 
     h, w = digit.shape
     if h > w:
-        new_h, new_w = 20, max(1, int(round(w * 20 / h)))
+        new_h, new_w = 20, max(1, round(w * 20 / h))
     else:
-        new_h, new_w = max(1, int(round(h * 20 / w))), 20
+        new_h, new_w = max(1, round(h * 20 / w)), 20
 
     digit_img = Image.fromarray((digit * 255).astype(np.uint8))
     digit_resized = np.array(
@@ -61,8 +75,8 @@ def preprocess_drawing(pil_image: Image.Image) -> np.ndarray:
         ys, xs = np.indices(canvas.shape)
         cy = (canvas * ys).sum() / total
         cx = (canvas * xs).sum() / total
-        shift_y = int(round(13.5 - cy))
-        shift_x = int(round(13.5 - cx))
+        shift_y = round(13.5 - cy)
+        shift_x = round(13.5 - cx)
         if shift_y or shift_x:
             canvas = np.roll(canvas, (shift_y, shift_x), axis=(0, 1))
             # np.roll wraps; zero the wrapped strips.

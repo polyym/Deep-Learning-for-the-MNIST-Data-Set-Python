@@ -1,10 +1,20 @@
-"""Console progress bar used while training from the CLI."""
+"""Console progress bar used while training from the CLI.
+
+Typical usage example::
+
+    from mnist_ann.progress import ProgressBar
+
+    bar = ProgressBar(total=50, prefix="Training: ")
+    for epoch in range(50):
+        # ... train one epoch ...
+        bar.update(epoch + 1, loss=0.42, accuracy=87.5)
+    bar.finish()
+"""
 
 from __future__ import annotations
 
 import sys
 import time
-from typing import Optional
 
 
 class ProgressBar:
@@ -20,8 +30,8 @@ class ProgressBar:
     def update(
         self,
         current: int,
-        loss: Optional[float] = None,
-        accuracy: Optional[float] = None,
+        loss: float | None = None,
+        accuracy: float | None = None,
     ) -> None:
         """Render the current progress line to stdout."""
         self.current = current

@@ -1,12 +1,17 @@
 """Flask application factory.
 
-Usage:
+The factory pattern keeps configuration isolated so tests can build a fresh
+app per test and production can wire Gunicorn to a stable entry point.
+
+Typical usage example::
+
     # Programmatic
     from mnist_ann.app import create_app
     app = create_app()
+    app.run(debug=True)
 
-    # Gunicorn
-    gunicorn "mnist_ann.app:create_app()"
+    # Gunicorn (see ``render.yaml``)
+    # $ gunicorn "mnist_ann.app:create_app()" --workers 1 --threads 8
 """
 
 from __future__ import annotations
@@ -18,6 +23,7 @@ from flask_cors import CORS
 
 from .config import (
     ALLOWED_ORIGINS,
+    DEBUG,
     MAX_CONTENT_LENGTH,
     RATE_LIMIT_ENABLED,
     STATIC_DIR,
@@ -50,18 +56,30 @@ def create_app() -> Flask:
 # Wiring helpers
 # ---------------------------------------------------------------------------
 def _configure_cors(app: Flask) -> None:
-    """Enable CORS for ``ALLOWED_ORIGINS`` (``*`` or a comma-separated list)."""
+    """Enable CORS for ``ALLOWED_ORIGINS`` (``*`` or a comma-separated list).
+
+    When deployed on Render we deliberately run with ``ALLOWED_ORIGINS=*``
+    (single-tenant demo, no cookies/auth), so spamming WARNING every startup
+    is just noise. The warning only fires under ``FLASK_DEBUG=true`` where
+    it's a genuine reminder to lock things down before deploying.
+    """
     if ALLOWED_ORIGINS == "*":
         CORS(app)
-        logger.warning("CORS is set to allow all origins. Consider restricting in production.")
+        if DEBUG:
+            logger.warning(
+                "CORS is set to allow all origins. "
+                "Consider restricting in production."
+            )
+        else:
+            logger.info("CORS is set to allow all origins.")
     else:
         origins = [origin.strip() for origin in ALLOWED_ORIGINS.split(",")]
         CORS(app, origins=origins)
-        logger.info(f"CORS configured for origins: {origins}")
+        logger.info("CORS configured for origins: %s", origins)
 
 
 def _configure_rate_limiter(app: Flask) -> None:
-    """Bind the module-level :data:`limiter` to ``app`` and honour ``RATE_LIMIT_ENABLED``."""
+    """Bind the module-level :data:`limiter` and honour ``RATE_LIMIT_ENABLED``."""
     limiter.enabled = RATE_LIMIT_ENABLED
     limiter.init_app(app)
 
@@ -93,7 +111,7 @@ def _register_error_handlers(app: Flask) -> None:
 
     @app.errorhandler(429)
     def _rate_limit_exceeded(e):
-        logger.warning(f"Rate limit exceeded: {request.remote_addr}")
+        logger.warning("Rate limit exceeded: %s", request.remote_addr)
         return jsonify({"error": "Rate limit exceeded. Please try again later."}), 429
 
     @app.errorhandler(500)

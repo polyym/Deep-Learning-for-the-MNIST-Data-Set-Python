@@ -17,9 +17,9 @@ os.environ["FLASK_DEBUG"] = "false"
 os.environ["LOG_LEVEL"] = "WARNING"
 os.environ["RATE_LIMIT_ENABLED"] = "false"
 
-from mnist_ann import routes as routes_module  # noqa: E402 -- after env setup
-from mnist_ann.app import create_app  # noqa: E402
-from mnist_ann.state import training_state  # noqa: E402
+from mnist_ann import routes as routes_module
+from mnist_ann.app import create_app
+from mnist_ann.state import training_state
 
 
 @pytest.fixture
@@ -40,11 +40,9 @@ def client(app):
 @pytest.fixture(autouse=True)
 def reset_training_state():
     """Reset the in-memory training state between tests."""
-    training_state._is_training = False
-    training_state._progress = []
-    training_state._network = None
-    training_state._results = None
-    training_state._cancel_event.clear()
+    training_state.is_training = False
+    training_state.network = None
+    training_state.reset()
     yield
 
 

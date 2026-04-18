@@ -27,11 +27,14 @@ class TestGetDataPath:
         path = get_data_path(small_dataset=False, train=False)
         assert path.endswith("mnist_test.csv")
 
-    def test_missing_file_raises(self, monkeypatch, tmp_path):
-        # Point DATA_DIR at an empty directory so no CSV exists.
+    def test_missing_file_raises_on_load(self, monkeypatch, tmp_path):
+        # Point DATA_DIR at an empty directory so the resolved path doesn't
+        # exist. get_data_path no longer pre-checks (TOCTOU-free); the miss
+        # surfaces at read time with a real FileNotFoundError from the OS.
         monkeypatch.setattr("mnist_ann.data.DATA_DIR", str(tmp_path))
+        path = get_data_path(small_dataset=True, train=True)
         with pytest.raises(FileNotFoundError):
-            get_data_path(small_dataset=True, train=True)
+            load_mnist_data(path)
 
 
 class TestLoadMnistData:

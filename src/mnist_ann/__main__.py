@@ -15,9 +15,9 @@ from .config import DATA_DIR, DEBUG, HOST, PORT
 def main() -> None:
     app = create_app()
     logger = logging.getLogger(__name__)
-    logger.info(f"Starting MNIST Neural Network server on {HOST}:{PORT}")
-    logger.info(f"Debug mode: {DEBUG}")
-    logger.info(f"Data directory: {DATA_DIR}")
+    logger.info("Starting MNIST Neural Network server on %s:%d", HOST, PORT)
+    logger.info("Debug mode: %s", DEBUG)
+    logger.info("Data directory: %s", DATA_DIR)
     if DEBUG:
         logger.warning("Running in DEBUG mode - do not use in production!")
     app.run(debug=DEBUG, host=HOST, port=PORT, threaded=True)

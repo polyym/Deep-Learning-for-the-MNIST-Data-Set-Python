@@ -105,7 +105,7 @@ class TestForwardShapes:
     def test_forward_accepts_batch_input(self):
         nn = _nn(hidden_layers=(32, 16, 8))
         X = np.random.rand(784, 7).astype(np.float32)
-        Y, cache = nn.forward(X)
+        Y, _ = nn.forward(X)
         assert Y.shape == (5, 7)
         # Column-wise softmax: each column sums to 1.
         assert np.allclose(Y.sum(axis=0), 1.0, atol=1e-5)
@@ -204,7 +204,9 @@ class TestTrainingConverges:
         history = nn.train(X, Y, n_epochs=30, show_progress_bar=False)
         losses = history["loss_history"]
         assert len(losses) == 30
-        assert losses[-1] < losses[0], f"loss did not decrease: {losses[0]:.2f} -> {losses[-1]:.2f}"
+        assert losses[-1] < losses[0], (
+            f"loss did not decrease: {losses[0]:.2f} -> {losses[-1]:.2f}"
+        )
 
 
 class TestDivergenceGuard:

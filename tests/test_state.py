@@ -31,13 +31,13 @@ class TestTrainingState:
 
     def test_reset_clears_progress_and_results_and_cancel(self):
         training_state.add_progress({"epoch": 1})
-        training_state._results = {"test": "data"}
+        training_state.results = {"test": "data"}
         training_state._cancel_event.set()
 
         training_state.reset()
 
-        assert len(training_state._progress) == 0
-        assert training_state._results is None
+        assert training_state.get_progress(100) == []
+        assert training_state.results is None
         assert not training_state._cancel_event.is_set()
 
     def test_request_cancel_noop_when_idle(self):
@@ -69,12 +69,12 @@ class TestStartIfIdle:
 
     def test_claim_clears_transient_state(self):
         training_state.add_progress({"epoch": 1})
-        training_state._results = {"old": "data"}
+        training_state.results = {"old": "data"}
         training_state._cancel_event.set()
 
         assert training_state.start_if_idle() is True
-        assert training_state._progress == []
-        assert training_state._results is None
+        assert training_state.get_progress(100) == []
+        assert training_state.results is None
         assert not training_state._cancel_event.is_set()
 
     def test_concurrent_claims_have_single_winner(self):

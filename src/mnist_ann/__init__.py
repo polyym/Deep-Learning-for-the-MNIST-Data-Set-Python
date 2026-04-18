@@ -21,9 +21,9 @@ except PackageNotFoundError:
     __version__ = "0+unknown"
 
 __all__ = [
-    "NeuralNetwork",
-    "load_mnist_data",
     "GPU_AVAILABLE",
-    "is_gpu_enabled",
+    "NeuralNetwork",
     "__version__",
+    "is_gpu_enabled",
+    "load_mnist_data",
 ]

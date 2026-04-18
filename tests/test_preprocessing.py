@@ -8,7 +8,10 @@ from PIL import Image
 from mnist_ann.preprocessing import preprocess_drawing
 
 
-def _canvas_png(bg: int = 26, fg_regions: list[tuple[int, int, int, int]] | None = None):
+def _canvas_png(
+    bg: int = 26,
+    fg_regions: list[tuple[int, int, int, int]] | None = None,
+):
     """Build a synthetic canvas image: dark bg with optional bright rectangles."""
     arr = np.full((224, 224), bg, dtype=np.uint8)
     for (r0, r1, c0, c1) in fg_regions or []:
