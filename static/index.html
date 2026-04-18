@@ -4,9 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Deep Learning for the MNIST Data Set</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"
+        integrity="sha512-QVs8Lo43F9lSuBykadDb0oSXDL/BbZ588urWVCRwSIoewQv/Ewg1f84mK3U790bZ0FfhFa1YSQUmIhG+pIRKeg=="
+        crossorigin="anonymous"
+        referrerpolicy="no-referrer"></script>
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"
+        integrity="sha512-6a1107rTlA4gYpgHAqbwLAtxmWipBdJFcq8y5S/aTge3Bp+VAklABm2LO+Kg51vOWR9JMZq1Ovjl5tpluNpTeQ=="
+        crossorigin="anonymous"
+        referrerpolicy="no-referrer"></script>
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.28.4/babel.min.js"
+        integrity="sha512-BCw4VuBF2HKIgxDP8K7DRHcHzazAAND+5+2E7GgX3CC1u1pteJ415mMJlQfUORjkFT64irzu1jIV93Vfvzkevw=="
+        crossorigin="anonymous"
+        referrerpolicy="no-referrer"></script>
     <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -772,12 +784,13 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef, useCallback } = React;
+        const { useState, useEffect, useRef } = React;
 
         // API functions
         const api = {
             health: async () => (await fetch('/api/health')).json(),
             train: async (c) => (await fetch('/api/train', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(c) })).json(),
+            cancel: async () => (await fetch('/api/cancel', { method: 'POST' })).json(),
             status: async () => (await fetch('/api/status')).json(),
             results: async () => (await fetch('/api/results')).json(),
             predict: async (img) => (await fetch('/api/predict', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: img }) })).json(),
@@ -833,7 +846,8 @@
             </div>
         );
 
-        // Confusion Matrix component
+        // Confusion Matrix component. Rows = predicted class, cols = true class
+        // (matches `confusion[pred, true] += 1` in network.evaluate).
         const ConfusionMatrix = ({ matrix, labels, title }) => {
             if (!matrix) return null;
             const max = Math.max(...matrix.flat());
@@ -843,7 +857,9 @@
                     <table className="matrix-table">
                         <thead>
                             <tr>
-                                <th></th>
+                                <th style={{ fontSize: '10px', fontStyle: 'italic', color: 'var(--paper-light)', fontWeight: 400 }}>
+                                    pred ↓ / true →
+                                </th>
                                 {labels.map(l => <th key={l}>{l}</th>)}
                             </tr>
                         </thead>
@@ -905,7 +921,22 @@
             const [activeSection, setActiveSection] = useState('intro');
             const [gpuAvailable, setGpuAvailable] = useState(false);
             const [drawPred, setDrawPred] = useState(null);
+            const [trainError, setTrainError] = useState(null);
+            const [trainNotice, setTrainNotice] = useState(null);
+            const [cancelPending, setCancelPending] = useState(false);
+            const [confirmRetrain, setConfirmRetrain] = useState(false);
             const canvasRef = useRef(null);
+
+            // Post-training nav timer. Stored in a ref (not state) so it
+            // survives re-renders and can be cancelled if the user restarts
+            // training before the 1.8s delay elapses.
+            const postTrainNavTimerRef = useRef(null);
+            const clearPostTrainNav = () => {
+                if (postTrainNavTimerRef.current !== null) {
+                    clearTimeout(postTrainNavTimerRef.current);
+                    postTrainNavTimerRef.current = null;
+                }
+            };
 
             // Check GPU availability on mount
             useEffect(() => {
@@ -920,12 +951,22 @@
                         const s = await api.status();
                         if (s.progress && s.progress.length > 0) {
                             const last = s.progress[s.progress.length - 1];
-                            setProgress(last);
-                            setLossHistory(s.progress.map(p => p.loss));
+                            // Cancellation and divergence entries carry no
+                            // epoch/loss/accuracy; skip them so the progress
+                            // panel doesn't flash NaN before the error banner
+                            // takes over.
+                            if (!last.cancelled && !last.error) setProgress(last);
+                            setLossHistory(s.progress.filter(p => typeof p.loss === 'number').map(p => p.loss));
                         }
                         if (!s.is_training) {
                             setTraining(false);
-                            if (s.has_results) {
+                            setCancelPending(false);
+                            const last = s.progress && s.progress.length > 0 ? s.progress[s.progress.length - 1] : null;
+                            if (last && last.cancelled) {
+                                setTrainNotice('Training cancelled.');
+                            } else if (last && last.error) {
+                                setTrainError(last.error);
+                            } else if (s.has_results) {
                                 const r = await api.results();
                                 setResults(r);
                                 setLossHistory(r.history?.loss_history || []);
@@ -933,21 +974,93 @@
                                     const samp = await api.samples();
                                     setSamples(samp.samples || []);
                                 } catch (e) {}
-                                setActiveSection('results');
+                                // Show a brief success notice on Section 3, then
+                                // jump to Results so the user sees something
+                                // finished before the tab switches.
+                                const testAcc = r.testing?.accuracy;
+                                setTrainNotice(
+                                    testAcc != null
+                                        ? `Training complete, test accuracy ${testAcc.toFixed(1)}%. Opening Results…`
+                                        : 'Training complete. Opening Results…'
+                                );
+                                clearPostTrainNav();
+                                postTrainNavTimerRef.current = setTimeout(() => {
+                                    setActiveSection('results');
+                                    setTrainNotice(null);
+                                    postTrainNavTimerRef.current = null;
+                                }, 1800);
                             }
                         }
                     } catch (e) {}
                 }, 500);
                 return () => clearInterval(iv);
             }, [training]);
+            // Clear any pending nav timer on unmount (tab close / HMR).
+            useEffect(() => clearPostTrainNav, []);
+
+            // Close the retrain-confirm modal with the Escape key.
+            useEffect(() => {
+                if (!confirmRetrain) return;
+                const onKey = (e) => {
+                    if (e.key === 'Escape') setConfirmRetrain(false);
+                };
+                window.addEventListener('keydown', onKey);
+                return () => window.removeEventListener('keydown', onKey);
+            }, [confirmRetrain]);
 
             const train = async () => {
+                // Cancel any leftover "Opening Results..." nav from the
+                // previous successful run; otherwise it fires mid-way through
+                // this one and yanks the user off the Experiment tab.
+                clearPostTrainNav();
                 setTraining(true);
+                setTrainError(null);
+                setTrainNotice(null);
+                setCancelPending(false);
                 setLossHistory([]);
                 setResults(null);
                 setSamples([]);
                 setProgress({ epoch: 0, totalEpochs: cfg.epochs, loss: 0, accuracy: 0 });
-                await api.train(cfg);
+                try {
+                    const resp = await api.train(cfg);
+                    if (resp && resp.error) {
+                        setTrainError(resp.error);
+                        setTraining(false);
+                    }
+                } catch (e) {
+                    setTrainError('Network error while starting training');
+                    setTraining(false);
+                }
+            };
+
+            // Gate retraining behind a confirmation modal once a model exists.
+            // Fresh runs (no prior model) start immediately, as before.
+            const requestTrain = () => {
+                if (training) return;
+                if (results) {
+                    setConfirmRetrain(true);
+                } else {
+                    train();
+                }
+            };
+
+            const confirmAndTrain = () => {
+                setConfirmRetrain(false);
+                train();
+            };
+
+            const cancel = async () => {
+                if (!training || cancelPending) return;
+                setCancelPending(true);
+                try {
+                    const resp = await api.cancel();
+                    if (resp && resp.error) {
+                        // Most likely "No training in progress" -- clear local flag.
+                        setCancelPending(false);
+                    }
+                } catch (e) {
+                    setCancelPending(false);
+                }
             };
 
             const clearCanvas = () => {
@@ -1025,9 +1138,15 @@
                 try {
                     const imageData = canvasRef.current.toDataURL('image/png');
                     const pred = await api.predict(imageData);
+                    if (!pred || pred.error || !pred.prediction) {
+                        console.error('Prediction failed:', pred && pred.error);
+                        setDrawPred(null);
+                        return;
+                    }
                     setDrawPred(pred);
                 } catch (e) {
                     console.error('Prediction failed:', e);
+                    setDrawPred(null);
                 }
             };
 
@@ -1085,7 +1204,7 @@
                                     <h2 className="section-title"><span className="section-number">1</span> Introduction</h2>
 
                                     <p>
-                                        Artificial neural networks (ANNs) are computational modeling techniques that extract complex
+                                        Artificial neural networks (ANNs) are computational modelling techniques that extract complex
                                         representative information from data by establishing empirical relationships between dependent
                                         and independent variables. As a supervised learning scheme, an ANN consists of three fundamental
                                         layers: input, hidden, and output layers.
@@ -1106,7 +1225,7 @@
                                     <h3 className="subsection-title">1.1 Weight Initialization</h3>
 
                                     <p>
-                                        Weights and biases are the two learnable parameters optimized during training. Initial weights
+                                        Weights and biases are the two learnable parameters optimised during training. Initial weights
                                         are assigned random values in the range [-0.5, 0.5], while biases are initialized to zero:
                                     </p>
 
@@ -1115,7 +1234,7 @@
                                     </Equation>
 
                                     <Equation number="2">
-                                        b<sub>n</sub> = zeros(nodes<sub>in</sub>, nodes<sub>out</sub>)
+                                        b<sub>n</sub> = zeros(nodes<sub>out</sub>, 1)
                                     </Equation>
 
                                     <p>
@@ -1246,12 +1365,73 @@
                                             fontSize: '14px',
                                             color: 'var(--paper-muted)'
                                         }}>
-                                            <strong style={{ color: 'var(--paper-accent)' }}>GPU Acceleration:</strong> This hosted version runs on CPU only.
-                                            For GPU-accelerated training, clone the{' '}
-                                            <a href="https://github.com/polyym/Deep-Learning-for-the-MNIST-Data-Set-Python" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--paper-accent)' }}>
-                                                repository
+                                            <strong style={{ color: 'var(--paper-accent)' }}>GPU Acceleration:</strong> This instance is running on CPU.
+                                            If you have an NVIDIA GPU with CUDA locally, install CuPy into the same <code>.venv</code> with
+                                            {' '}<code style={{ fontSize: '13px' }}>uv sync --extra gpu-cuda12</code>{' '}
+                                            (CUDA 12.x) or <code style={{ fontSize: '13px' }}>uv sync --extra gpu-cuda11</code> (CUDA 11.x),
+                                            then restart the server. See the{' '}
+                                            <a href="https://github.com/polyym/Deep-Learning-for-the-MNIST-Data-Set-Python#gpu-acceleration-optional" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--paper-accent)' }}>
+                                                repo README
                                             </a>{' '}
-                                            and run locally with an NVIDIA GPU and CuPy installed.
+                                            for full setup details.
+                                        </div>
+                                    )}
+
+                                    {results && !training && (
+                                        <div style={{
+                                            margin: '16px 0 24px',
+                                            padding: '16px 20px',
+                                            background: 'rgba(45, 106, 79, 0.06)',
+                                            border: '1px solid rgba(45, 106, 79, 0.25)',
+                                            borderLeft: '3px solid #2d6a4f',
+                                            fontSize: '14px',
+                                            color: 'var(--paper-muted)',
+                                            lineHeight: '1.6',
+                                        }}>
+                                            <div style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                gap: '16px',
+                                                flexWrap: 'wrap',
+                                            }}>
+                                                <div>
+                                                    <div style={{
+                                                        fontSize: '12px',
+                                                        fontWeight: '700',
+                                                        letterSpacing: '1.5px',
+                                                        textTransform: 'uppercase',
+                                                        color: '#2d6a4f',
+                                                        marginBottom: '6px',
+                                                    }}>
+                                                        ✓ Trained model ready
+                                                    </div>
+                                                    <div>
+                                                        <strong>{results.config?.useSmallData ? 'Small (100)' : 'Full (60K)'}</strong> dataset
+                                                        {' · '}
+                                                        <strong>{results.config?.backpropMethod === 'cb' ? 'Calculus-Based' : 'Unscaled Heuristic'}</strong>
+                                                        {' · '}
+                                                        lr {results.config?.learningRate}
+                                                        {' · '}
+                                                        digits {results.config?.digits?.join(', ')}
+                                                    </div>
+                                                    <div style={{ marginTop: '4px' }}>
+                                                        Test accuracy: <strong>{results.testing?.accuracy?.toFixed(1)}%</strong>
+                                                        {' · '}
+                                                        Train accuracy: <strong>{results.training?.accuracy?.toFixed(1)}%</strong>
+                                                    </div>
+                                                    <div style={{ marginTop: '4px', fontSize: '13px', fontStyle: 'italic', color: 'var(--paper-light)' }}>
+                                                        Starting a new run will replace this model.
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    className="canvas-btn primary"
+                                                    style={{ whiteSpace: 'nowrap' }}
+                                                    onClick={() => setActiveSection('results')}
+                                                >
+                                                    View Results →
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
 
@@ -1365,10 +1545,12 @@
                                             </div>
                                             <button
                                                 className="train-btn"
-                                                onClick={train}
+                                                onClick={requestTrain}
                                                 disabled={training}
                                             >
-                                                {training ? 'Training in Progress...' : 'Begin Training'}
+                                                {training
+                                                    ? 'Training in Progress...'
+                                                    : (results ? 'Retrain Model' : 'Begin Training')}
                                             </button>
                                         </div>
                                     </div>
@@ -1394,22 +1576,61 @@
                                         </div>
                                     </Figure>
 
+                                    {trainError && (
+                                        <div style={{
+                                            margin: '16px 0',
+                                            padding: '12px 16px',
+                                            background: 'rgba(139, 35, 35, 0.08)',
+                                            border: '1px solid rgba(139, 35, 35, 0.3)',
+                                            fontSize: '14px',
+                                            color: 'var(--paper-accent)'
+                                        }}>
+                                            <strong>Training Error:</strong> {trainError}
+                                        </div>
+                                    )}
+
+                                    {trainNotice && !training && (() => {
+                                        const isSuccess = /complete/i.test(trainNotice);
+                                        return (
+                                            <div style={{
+                                                margin: '16px 0',
+                                                padding: '12px 16px',
+                                                background: isSuccess ? 'rgba(45, 106, 79, 0.08)' : 'var(--paper-highlight)',
+                                                border: isSuccess ? '1px solid rgba(45, 106, 79, 0.3)' : '1px solid var(--paper-border)',
+                                                borderLeft: isSuccess ? '3px solid #2d6a4f' : undefined,
+                                                fontSize: '14px',
+                                                color: isSuccess ? '#2d6a4f' : 'var(--paper-muted)',
+                                            }}>
+                                                {isSuccess ? '✓ ' : ''}{trainNotice}
+                                            </div>
+                                        );
+                                    })()}
+
                                     {training && (
                                         <div className="training-status">
                                             <div className="training-spinner" />
-                                            <p><strong>Training Neural Network</strong></p>
+                                            <p><strong>{cancelPending ? 'Cancelling…' : 'Training Neural Network'}</strong></p>
                                             <div className="progress-bar">
                                                 <div className="progress-fill" style={{ width: `${(progress.epoch / cfg.epochs) * 100}%` }} />
                                             </div>
                                             <div className="progress-stats">
                                                 <span>
-                                                    Epoch {Math.floor(progress.epoch)} / {cfg.epochs}
+                                                    Epoch {Math.min(Math.max(1, Math.ceil(progress.epoch)), cfg.epochs)} / {cfg.epochs}
                                                     {progress.samples_done && progress.total_samples ?
                                                         ` (${progress.samples_done.toLocaleString()} / ${progress.total_samples.toLocaleString()} samples)` :
                                                         (progress.epoch % 1 > 0 ? ` (${Math.round((progress.epoch % 1) * 100)}% of epoch)` : '')
                                                     }
                                                 </span>
                                                 <span>Loss: {(progress.loss || 0).toFixed(1)} · Accuracy: {(progress.accuracy || 0).toFixed(1)}%</span>
+                                            </div>
+                                            <div style={{ marginTop: '16px', textAlign: 'center' }}>
+                                                <button
+                                                    className="canvas-btn"
+                                                    onClick={cancel}
+                                                    disabled={cancelPending}
+                                                >
+                                                    {cancelPending ? 'Cancelling…' : 'Cancel Training'}
+                                                </button>
                                             </div>
                                         </div>
                                     )}
@@ -1471,7 +1692,7 @@
                                                 </div>
                                             </div>
 
-                                            <Figure number="2" caption="Cross-entropy loss function plotted against training epochs, demonstrating convergence behavior.">
+                                            <Figure number="2" caption="Cross-entropy loss function plotted against training epochs, demonstrating convergence behaviour.">
                                                 <div className="loss-chart">
                                                     {lossHistory.map((l, i) => (
                                                         <div
@@ -1587,7 +1808,7 @@
                                                     <li>Go to <strong>Section 3: Experiment</strong></li>
                                                     <li>Select <strong>Full (60K)</strong> dataset</li>
                                                     <li>Click <strong>Begin Training</strong></li>
-                                                    <li>Wait for training to complete (~30 minutes on CPU)</li>
+                                                    <li>Wait for training to complete (~15–20 minutes on CPU)</li>
                                                 </ol>
                                             </div>
                                             <p style={{ marginTop: '24px', fontSize: '13px', color: 'var(--paper-light)', fontStyle: 'italic' }}>
@@ -1599,7 +1820,7 @@
                                         <>
                                             <p>
                                                 Draw a digit in the canvas below to test the trained network's classification capabilities.
-                                                The network has been trained to recognize digits {digits.join(', ')} and will classify
+                                                The network has been trained to recognise digits {digits.join(', ')} and will classify
                                                 all other inputs as "None".
                                             </p>
 
@@ -1683,11 +1904,100 @@
                             </div>
                         </footer>
                     </article>
+
+                    {/* Retrain confirmation modal. Rendered at the paper-container
+                        level so it overlays any active section. Escape key and
+                        backdrop click both dismiss. */}
+                    {confirmRetrain && (
+                        <div
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="retrain-dialog-title"
+                            onClick={() => setConfirmRetrain(false)}
+                            style={{
+                                position: 'fixed',
+                                inset: 0,
+                                background: 'rgba(26, 26, 26, 0.55)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '20px',
+                                zIndex: 1000,
+                            }}
+                        >
+                            <div
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                    background: 'var(--paper-bg)',
+                                    border: '1px solid var(--paper-border)',
+                                    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.25)',
+                                    maxWidth: '480px',
+                                    width: '100%',
+                                    padding: '28px 32px',
+                                    fontFamily: 'var(--serif)',
+                                }}
+                            >
+                                <div
+                                    id="retrain-dialog-title"
+                                    style={{
+                                        fontSize: '12px',
+                                        fontWeight: 700,
+                                        letterSpacing: '1.5px',
+                                        textTransform: 'uppercase',
+                                        color: 'var(--paper-accent)',
+                                        marginBottom: '12px',
+                                    }}
+                                >
+                                    Retrain Model?
+                                </div>
+                                <p style={{
+                                    fontSize: '15px',
+                                    lineHeight: '1.6',
+                                    color: 'var(--paper-text)',
+                                    marginBottom: '12px',
+                                }}>
+                                    Retraining will <strong>discard the current model</strong> and
+                                    replace it with a fresh run using your selected hyperparameters.
+                                    The existing results will be lost.
+                                </p>
+                                {results && (
+                                    <p style={{
+                                        fontSize: '13px',
+                                        color: 'var(--paper-muted)',
+                                        marginBottom: '24px',
+                                        fontStyle: 'italic',
+                                    }}>
+                                        Current: {results.config?.useSmallData ? 'Small (100)' : 'Full (60K)'} dataset · {results.config?.backpropMethod === 'cb' ? 'CB' : 'UHB'} · test accuracy {results.testing?.accuracy?.toFixed(1)}%.
+                                    </p>
+                                )}
+                                <div style={{
+                                    display: 'flex',
+                                    gap: '12px',
+                                    justifyContent: 'flex-end',
+                                }}>
+                                    <button
+                                        className="canvas-btn"
+                                        onClick={() => setConfirmRetrain(false)}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        className="canvas-btn primary"
+                                        onClick={confirmAndTrain}
+                                        autoFocus
+                                    >
+                                        Retrain
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
 
-        ReactDOM.render(<App />, document.getElementById('root'));
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>

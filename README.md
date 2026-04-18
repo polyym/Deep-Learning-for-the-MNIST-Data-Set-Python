@@ -1,6 +1,6 @@
 # MNIST Neural Network Web Application
 
-A production-ready Python web application for handwritten digit recognition, converted from the original MATLAB implementation for the MA2647 Artificial Neural Network project.
+A production-ready Python web application for handwritten digit recognition, converted from the original MATLAB implementation for the MA2647 Deep Learning course.
 
 ## Live Demo
 
@@ -11,42 +11,65 @@ A production-ready Python web application for handwritten digit recognition, con
 ## Features
 
 - **Scientific Paper UI**: Clean, academic-style interface with equations and methodology
-- **GPU Acceleration**: Optional CUDA support via CuPy for 10-50x faster training
 - **Configurable Architecture**: 3 hidden layers with user-defined neuron counts
 - **Two Backpropagation Methods**:
   - Calculus-Based (CB) - uses chain rule for gradient computation
   - Unscaled Heuristic (UHB) - simplified error backpropagation
-- **Real-time Training Progress**: Watch loss curves and accuracy metrics update live
-- **Confusion Matrices**: Visualize classification performance
-- **Draw & Predict**: Test the trained model by drawing digits
+- **Real-time Training Progress**: Watch loss and accuracy update live; cancel a run mid-training with one click
+- **Optional GPU Backend**: CuPy/CUDA path for larger networks (see the GPU section; CPU is typically faster at the default hidden-layer sizes)
+- **Confusion Matrices**: Visualise classification performance
+- **Draw & Predict**: Test the trained model by drawing digits. Inputs are preprocessed to match the MNIST convention (bounding-box crop → 20×20 scale → centre-of-mass centring on a 28×28 canvas)
 - **Production Ready**: Thread-safe, rate limiting, security headers, input validation
 
 ## Quick Start
 
 ### Prerequisites
-- Python 3.8 or higher
-- pip (Python package manager)
+- Python 3.13 or higher
+- [uv](https://docs.astral.sh/uv/) (recommended; it manages the venv and
+  installs dependencies automatically, pinned against `uv.lock` for
+  reproducibility). One-line install:
+  ```bash
+  # Linux / macOS
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  # Windows (PowerShell)
+  powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+  ```
 - (Optional) NVIDIA GPU with CUDA for accelerated training
 
-### Installation
+### Installation (uv, recommended)
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/polyym/Deep-Learning-for-the-MNIST-Data-Set-Python.git
 cd Deep-Learning-for-the-MNIST-Data-Set-Python
 
-# 2. Create a virtual environment (recommended)
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# 2. Start the server. `uv run` creates `.venv/` from pyproject.toml + uv.lock
+#    on first run, installs the package, and executes the console script.
+uv run mnist-ann
 
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Start the server
-python app.py
-
-# 5. Open your browser to:
+# 3. Open your browser to:
 #    http://localhost:5000
+```
+
+Subsequent runs reuse the same `.venv/`; `uv` re-checks the lockfile in a
+few ms and refuses to drift.
+
+> **GPU users:** the default `uv run` installs the CPU-only base dependencies.
+> If you have an NVIDIA GPU with CUDA, also run `uv sync --extra gpu-cuda12`
+> (CUDA 12.x) or `uv sync --extra gpu-cuda11` (CUDA 11.x) once to pull CuPy
+> into the same `.venv/`. Having CuPy in your system Python is **not enough**,
+> since `uv`'s venv is isolated. See [GPU Acceleration](#gpu-acceleration-optional)
+> below for full setup.
+
+### Installation (pip fallback)
+
+If you prefer not to install `uv`, the standard pip/venv flow still works:
+
+```bash
+python -m venv venv
+source venv/bin/activate    # Windows: venv\Scripts\activate
+pip install -e .
+mnist-ann                   # or: python -m mnist_ann
 ```
 
 ### Quick Test
@@ -58,9 +81,11 @@ python app.py
 
 ---
 
-## GPU Acceleration (Local Setup)
+## GPU Acceleration (Optional)
 
-The hosted version on Render runs on CPU only. For significantly faster training, run the application locally with GPU acceleration.
+This implementation uses **online SGD**, one forward/backward pass and weight update per sample. With the default hidden-layer sizes (64/32/16), per-operation GPU kernel-launch overhead dominates the actual compute, so **CPU is typically faster than GPU in the default configuration**. GPU becomes worthwhile once you enlarge hidden layers significantly (roughly 512+ neurons per layer).
+
+The hosted version on Render runs on CPU only; running locally with or without GPU is a question of whether you want the CuPy backend available, not a requirement for reasonable performance.
 
 ### Requirements
 
@@ -78,29 +103,35 @@ The hosted version on Render runs on CPU only. For significantly faster training
 
 2. **Install CuPy matching your CUDA version:**
    ```bash
-   # For CUDA 12.x
-   pip install cupy-cuda12x
+   # uv (recommended)
+   uv sync --extra gpu-cuda12   # CUDA 12.x
+   uv sync --extra gpu-cuda11   # CUDA 11.x
 
-   # For CUDA 11.x
-   pip install cupy-cuda11x
+   # pip fallback
+   pip install ".[gpu-cuda12]"  # or ".[gpu-cuda11]"
    ```
 
 3. **Verify GPU is detected:**
    ```bash
-   python -c "from neural_network import GPU_AVAILABLE; print(f'GPU Available: {GPU_AVAILABLE}')"
+   uv run python -c "from mnist_ann import GPU_AVAILABLE; print(f'GPU Available: {GPU_AVAILABLE}')"
    ```
 
 4. **Start the server:**
    ```bash
-   python app.py
+   uv run mnist-ann
    ```
 
-### Performance Comparison
+### Approximate Training Times
 
-| Dataset | CPU (i7-9700K) | GPU (RTX 2080 Ti) | Speedup |
-|---------|----------------|-------------------|---------|
-| Small (100 samples) | ~0.5s/epoch | ~0.1s/epoch | 5x |
-| Full (60K samples) | ~35s/epoch | ~3s/epoch | 12x |
+Exact numbers depend on hardware; the takeaway is the *relative trend*:
+
+| Scenario | Hidden Layers | CPU | GPU (RTX 2080 Ti) |
+|----------|---------------|------|-------------------|
+| Small dataset (100), 50 epochs | 64/32/16 | ~1–2 s | ~30–60 s |
+| Full dataset (60K), 50 epochs | 64/32/16 | ~15–25 min | hours (kernel-launch bound) |
+| Full dataset (60K), 50 epochs | 512/256/128 | much slower | typically faster than CPU |
+
+For the defaults shipped in the UI, **just use CPU**. Switch to GPU only if you've widened the network enough that the per-op compute dominates launch overhead.
 
 ### Troubleshooting GPU Issues
 
@@ -136,8 +167,13 @@ This application is configured for deployment on [Render](https://render.com):
 4. Render will auto-detect `render.yaml` and configure everything
 
 The `render.yaml` configuration includes:
-- Python 3.11 runtime
-- Gunicorn production server with 2 workers and 4 threads
+- Python 3.13 runtime
+- `pip install -e .` build (editable install so `config.py` can locate the
+  repo's `static/` and `data/` directories at runtime)
+- Gunicorn production server using the factory entry point
+  `mnist_ann.app:create_app()`, 1 worker, 8 threads (the in-process
+  `TrainingState` singleton would be duplicated across workers, so a
+  multi-worker deploy would split training/model state per request)
 - 120-second timeout for long training requests
 - Automatic port configuration
 
@@ -154,19 +190,21 @@ Configure the application using environment variables (see `.env.example`):
 | `HOST` | Server host | `0.0.0.0` |
 | `ALLOWED_ORIGINS` | CORS origins (comma-separated or `*`) | `*` |
 | `MAX_CONTENT_LENGTH` | Max request size in bytes | `16777216` |
-| `DATA_DIR` | Path to CSV data files | Application directory |
+| `DATA_DIR` | Path to the MNIST CSV directory | `<repo>/data/` (or `$CWD/data/`) |
+| `STATIC_DIR` | Path to the frontend static files | `<repo>/static/` (or `$CWD/static/`) |
 | `LOG_LEVEL` | Logging level | `INFO` |
 | `RATE_LIMIT_ENABLED` | Enable API rate limiting | `true` |
 
 ### Local Production Server
 
 ```bash
-# Using Gunicorn (Linux/macOS)
-gunicorn app:app --bind 0.0.0.0:5000 --workers 2 --threads 4
+# Using Gunicorn (Linux/macOS) -- note the factory invocation
+uv run gunicorn "mnist_ann.app:create_app()" --bind 0.0.0.0:5000 --workers 1 --threads 8
+# or, outside uv:
+# gunicorn "mnist_ann.app:create_app()" --bind 0.0.0.0:5000 --workers 1 --threads 8
 
-# Using Waitress (Windows)
-pip install waitress
-waitress-serve --port=5000 app:app
+# Using Waitress (Windows) -- ad-hoc, without adding it as a project dep
+uv run --with waitress waitress-serve --port=5000 --call mnist_ann.app:create_app
 ```
 
 ---
@@ -175,19 +213,51 @@ waitress-serve --port=5000 app:app
 
 ```
 Deep-Learning-for-the-MNIST-Data-Set-Python/
-├── app.py                 # Flask backend server
-├── neural_network.py      # Neural network implementation (NumPy/CuPy)
-├── requirements.txt       # Python dependencies
-├── render.yaml            # Render deployment configuration
-├── .env.example           # Environment variable template
-├── test_app.py            # Unit tests (40 tests)
-├── static/
-│   └── index.html         # React frontend (single-file)
-├── mnist_train_100.csv    # Small training set (100 samples)
-├── mnist_test_10.csv      # Small test set (10 samples)
-├── mnist_train.csv        # Full training set (60,000 samples)
-├── mnist_test.csv         # Full test set (10,000 samples)
-└── README.md
+├── pyproject.toml              # Package metadata, dependencies, pytest config
+├── uv.lock                     # Lockfile (used by `uv sync`); commit to git
+├── render.yaml                 # Render deployment configuration
+├── .env.example                # Environment variable template
+├── .gitignore
+├── README.md
+│
+├── .github/
+│   └── workflows/
+│       └── tests.yml           # CI: run pytest on push/PR
+│
+├── src/mnist_ann/              # Application package
+│   ├── __init__.py             # Public re-exports + __version__
+│   ├── __main__.py             # `python -m mnist_ann` entry
+│   ├── app.py                  # Flask app factory (create_app)
+│   ├── routes.py               # Blueprint with every /api/* route
+│   ├── config.py               # Env config, paths, logging
+│   ├── extensions.py           # Flask-Limiter instance
+│   ├── state.py                # Thread-safe TrainingState singleton
+│   ├── validation.py           # Input validators + ValidationError
+│   ├── preprocessing.py        # Canvas drawing -> MNIST-style 28x28 input
+│   ├── backend.py              # GPU detection + NumPy/CuPy abstraction
+│   ├── progress.py             # Console progress bar
+│   ├── data.py                 # CSV loader + dataset path resolution
+│   └── network.py              # NeuralNetwork class
+│
+├── tests/                      # Pytest suite (mirrors the package layout)
+│   ├── conftest.py
+│   ├── test_app_factory.py
+│   ├── test_data.py
+│   ├── test_endpoints.py
+│   ├── test_errors.py
+│   ├── test_network.py
+│   ├── test_preprocessing.py
+│   ├── test_state.py
+│   └── test_validation.py
+│
+├── data/                       # MNIST CSV datasets
+│   ├── mnist_train_100.csv     # Small training set (100 samples)
+│   ├── mnist_test_10.csv       # Small test set (10 samples)
+│   ├── mnist_train.csv         # Full training set (60,000 samples)
+│   └── mnist_test.csv          # Full test set (10,000 samples)
+│
+└── static/
+    └── index.html              # React frontend (single-file, inline Babel)
 ```
 
 ## Configuration Options
@@ -224,10 +294,11 @@ Input (784) → H1 (U) → H2 (V) → H3 (W) → Output (5)
 | `/` | GET | - | Serve the web interface |
 | `/api/health` | GET | - | Health check with GPU status |
 | `/api/train` | POST | 5/min | Start training with configuration |
-| `/api/status` | GET | - | Get training status and progress |
+| `/api/cancel` | POST | 30/min | Request cancellation of an in-flight training run |
+| `/api/status` | GET | 600/min | Training status + recent progress tail (polled 2/sec by the UI) |
 | `/api/results` | GET | - | Get training/testing results |
 | `/api/predict` | POST | 30/min | Predict a drawn digit |
-| `/api/sample_images` | GET | - | Get sample test images |
+| `/api/sample_images` | GET | 50/hour, 200/day | Get sample test images (inherits default limits) |
 
 ## Technical Details
 
@@ -265,6 +336,19 @@ Cross-entropy loss:
 L = -Σ y_true * log(y_pred)
 ```
 
+### Drawing Input Preprocessing
+
+Hand-drawn canvas input is converted to MNIST-style network input before inference:
+
+1. **Greyscale** the canvas PNG at 224×224 and normalise to `[0, 1]`.
+2. **Threshold** away the dark-grey background baseline (CSS `#1a1a1a` ≈ 0.10); pixels below 0.15 become `0`.
+3. **Bounding-box crop** around the remaining signal pixels.
+4. **Scale** the longer side to 20 pixels with LANCZOS resampling, preserving aspect ratio.
+5. **Paste** onto a 28×28 canvas.
+6. **Shift** so the digit's centre of mass sits at `(13.5, 13.5)`, the same centring convention used when MNIST was originally constructed.
+
+Canvas PNGs already have a bright digit on a dark background (matching MNIST polarity), so **no pixel inversion is applied**. The network sees `bg ≈ 0.0, digit ≈ 1.0`, the same distribution it was trained on.
+
 ## Results from Original MATLAB Implementation
 
 | Method | Epochs | Learning Rate | Train Acc. | Test Acc. |
@@ -274,46 +358,53 @@ L = -Σ y_true * log(y_pred)
 
 ## Testing
 
-Run the test suite:
+The package ships with a pytest suite covering validators, HTTP endpoints,
+state management, error handlers, canvas preprocessing, and the neural
+network's math.
 
 ```bash
-pytest test_app.py -v
+# uv (recommended; auto-installs the [test] extra into .venv on first run)
+uv run --extra test pytest
+uv run --extra test pytest tests/test_endpoints.py -v
+uv run --extra test pytest --cov=mnist_ann --cov-report=term-missing
+
+# pip fallback
+pip install -e ".[test]"
+pytest
 ```
 
-With coverage:
-
-```bash
-pytest test_app.py --cov=app --cov-report=term-missing
-```
+`pyproject.toml` sets ``pythonpath = ["src"]`` for pytest, so tests find the
+package without a separate editable install, but the editable install is
+still needed to get the console script and to `pip install .[test]`.
 
 ## Troubleshooting
 
 ### Port already in use
 Set a different port using the `PORT` environment variable:
 ```bash
-PORT=5001 python app.py
+PORT=5001 uv run mnist-ann      # or: PORT=5001 python -m mnist_ann
 ```
 
 ### Missing dependencies
 ```bash
-pip install flask flask-cors flask-limiter numpy pillow gunicorn
+uv sync                          # or: pip install -e .
 ```
 
 ### Training is slow
 - Use the **"Small"** dataset option for quick testing
-- Enable GPU acceleration if you have an NVIDIA GPU (see GPU section above)
-- The full dataset (60K samples) takes ~30-40s/epoch on CPU vs ~3s/epoch on GPU
-- Training 50 epochs on the full dataset takes ~30 minutes on CPU
+- On the full dataset (60K samples), roughly **15-25 minutes** for 50 epochs on a modern CPU
+- **Prefer CPU for the default layer sizes.** GPU is slower here because of per-op kernel-launch overhead in the online-SGD loop (see the GPU Acceleration section). Enable GPU only if you widen hidden layers significantly
+- You can **Cancel Training** mid-run from the UI if you just want to check a checkpoint; results and the trained model are only published once a full run completes, so cancelling leaves the previously trained model intact
 
 ### Drawing prediction not working
 - Ensure you've trained a model first
-- Draw digits clearly in the center of the canvas
+- Draw digits clearly in the centre of the canvas
 - Use thick strokes
 
 ### Getting the Full Training Dataset
-The included `mnist_train_100.csv` has only 100 samples. For the full 60,000 training samples:
+The included `data/mnist_train_100.csv` has only 100 samples. For the full 60,000 training samples:
 1. Download from [Kaggle MNIST in CSV](https://www.kaggle.com/datasets/oddrationale/mnist-in-csv)
-2. Save as `mnist_train.csv` in the project folder
+2. Save as `data/mnist_train.csv`
 3. Select "Full (60K)" in the Dataset option
 
 ## Links
@@ -326,3 +417,9 @@ The included `mnist_train_100.csv` has only 100 samples. For the full 60,000 tra
 ## Credits
 
 Converted from MATLAB implementation by Hadi for the MA2647 Deep Learning course.
+
+## AI usage
+
+Claude Sonnet 4.6 Extended (Anthropic) wrote all of the most recent tests and
+assisted with some of the documentation, as well as helping me split the files
+to better organise this project.

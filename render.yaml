@@ -2,11 +2,18 @@ services:
   - type: web
     name: mnist-neural-network
     runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
+    # Editable install keeps the package pointing at the source checkout, so
+    # `STATIC_DIR` / `DATA_DIR` resolved by config.py still point at the repo's
+    # `static/` and `data/` folders rather than site-packages.
+    buildCommand: pip install -e .
+    # Single worker is required: TrainingState is an in-process singleton,
+    # so multiple workers would see independent training/model state and
+    # break cancellation and /api/predict across polls. Threads scale
+    # concurrent request handling within the one worker.
+    startCommand: gunicorn "mnist_ann.app:create_app()" --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 120
     envVars:
       - key: PYTHON_VERSION
-        value: "3.11"
+        value: "3.13"
       - key: FLASK_DEBUG
         value: "false"
       - key: LOG_LEVEL

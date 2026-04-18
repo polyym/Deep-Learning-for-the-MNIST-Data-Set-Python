@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=77.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mnist-ann"
+version = "1.0.0"
+description = "MNIST digit classification with a feedforward ANN, Flask API, and React UI"
+readme = "README.md"
+requires-python = ">=3.13"
+authors = [{ name = "Hadi K" }]
+dependencies = [
+    "flask>=3.1.3",
+    "flask-cors>=6.0.2",
+    "flask-limiter>=4.1.1",
+    "numpy>=2.4.4",
+    "Pillow>=12.2.0",
+    "gunicorn>=25.3.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+]
+# Install the CuPy wheel that matches your CUDA version.
+# cupy-cuda11x has no v14 release (CUDA 11 is in maintenance); stay on the
+# 13.x line for that path. cupy-cuda12x tracks the current 14.x series.
+gpu-cuda11 = ["cupy-cuda11x>=13.6.0"]
+gpu-cuda12 = ["cupy-cuda12x>=14.0.1"]
+
+[project.scripts]
+mnist-ann = "mnist_ann.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/polyym/Deep-Learning-for-the-MNIST-Data-Set-Python"
+"Original MATLAB" = "https://github.com/polyym/Deep-Learning-for-the-MNIST-Data-Set"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-ra"
