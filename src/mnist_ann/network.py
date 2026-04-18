@@ -1,6 +1,6 @@
 """Feedforward neural network for MNIST digit classification.
 
-Mirrors the original MATLAB implementation (``ann1923114.m``):
+Mirrors my own MATLAB implementation (``ann1923114.m``):
 
 - 784 input units (28x28 images)
 - 3 sigmoid hidden layers (user-configurable widths)

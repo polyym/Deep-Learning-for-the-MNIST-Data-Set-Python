@@ -1,6 +1,6 @@
 # MNIST Neural Network Web Application
 
-A production-ready Python web application for handwritten digit recognition, converted from the original MATLAB implementation for the MA2647 Deep Learning course.
+A production-ready Python web application for handwritten digit recognition, ported from my own MATLAB implementation for the MA2647 Deep Learning course.
 
 ## Live Demo
 
@@ -413,10 +413,6 @@ The included `data/mnist_train_100.csv` has only 100 samples. For the full 60,00
 - **Original MATLAB**: [GitHub Repository](https://github.com/polyym/Deep-Learning-for-the-MNIST-Data-Set)
 - **Project Report**: [PDF](https://github.com/polyym/Deep-Learning-for-the-MNIST-Data-Set/blob/main/1923114_Report.pdf)
 - **Video Walkthrough**: [YouTube](https://www.youtube.com/watch?v=AcSmXXuit6k)
-
-## Credits
-
-Converted from MATLAB implementation by Hadi for the MA2647 Deep Learning course.
 
 ## AI usage
 

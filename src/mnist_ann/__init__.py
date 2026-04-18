@@ -1,7 +1,8 @@
 """MNIST digit classification with a feedforward ANN and Flask API.
 
-Ported from the MATLAB MA2647 ANN project. See ``app.create_app`` for the
-WSGI entry point and ``network.NeuralNetwork`` for the model.
+Ported from my own MATLAB implementation for the MA2647 Deep Learning course.
+See ``app.create_app`` for the WSGI entry point and ``network.NeuralNetwork``
+for the model.
 """
 
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
